@@ -26,6 +26,11 @@ def _extract_number(payload: Dict[str, Any]) -> Optional[str]:
         or payload.get("remoteJid")
         or payload.get("sender")
     )
+    # Event-style: payload.data.key.remoteJid
+    if not number and isinstance(payload.get("data"), dict):
+        data = payload["data"]
+        key = isinstance(data.get("key"), dict) and data.get("key") or {}
+        number = key.get("remoteJid") or data.get("remoteJid")
     if not number:
         return None
     # normalize patterns like 5511999999999@c.us
@@ -39,6 +44,35 @@ def _extract_text(payload: Dict[str, Any]) -> Optional[str]:
         t = payload["text"].get("body") or payload["text"].get("text")
         if t:
             return str(t)
+    # Event-style: payload.data.message
+    if isinstance(payload.get("data"), dict):
+        data = payload["data"]
+        msg = data.get("message") or {}
+        if isinstance(msg, dict):
+            # conversation
+            if msg.get("conversation"):
+                return str(msg.get("conversation")).strip()
+            # extendedTextMessage
+            etm = msg.get("extendedTextMessage")
+            if isinstance(etm, dict) and etm.get("text"):
+                return str(etm.get("text")).strip()
+            # image caption
+            im = msg.get("imageMessage")
+            if isinstance(im, dict) and im.get("caption"):
+                return str(im.get("caption")).strip()
+            # buttons response
+            br = msg.get("buttonsResponseMessage")
+            if isinstance(br, dict):
+                if br.get("selectedDisplayText"):
+                    return str(br.get("selectedDisplayText")).strip()
+                if br.get("selectedId"):
+                    return str(br.get("selectedId")).strip()
+            # list response
+            lr = msg.get("listResponseMessage")
+            if isinstance(lr, dict):
+                sel = lr.get("singleSelectReply")
+                if isinstance(sel, dict) and sel.get("selectedRowId"):
+                    return str(sel.get("selectedRowId")).strip()
     return str(
         payload.get("message")
         or payload.get("body")
@@ -73,7 +107,10 @@ def evolution_webhook():
 
     for msg in messages:
         # Ignore messages sent by our own instance (status updates, echoes)
-        if str(msg.get("fromMe") or msg.get("from_me") or msg.get("author")) in ("True", "true", "1"):
+        own = msg.get("fromMe") or msg.get("from_me")
+        if own is None and isinstance(msg.get("data"), dict):
+            own = msg["data"].get("key", {}).get("fromMe")
+        if str(own) in ("True", "true", "1"):
             continue
         number = _extract_number(msg)
         text = _extract_text(msg)
