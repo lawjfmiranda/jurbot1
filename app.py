@@ -118,6 +118,8 @@ def debug_echo():
 @app.route("/webhook/evolution", methods=["POST"])
 def evolution_webhook():
     token = request.headers.get("X-Webhook-Token") or request.args.get("token")
+    if token and "/" in token:
+        token = token.split("/", 1)[0]
     if EVOLUTION_WEBHOOK_TOKEN and token != EVOLUTION_WEBHOOK_TOKEN:
         app.logger.warning("Webhook auth failed: missing/invalid token")
         return jsonify({"error": "unauthorized"}), 401
