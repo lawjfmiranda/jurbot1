@@ -27,8 +27,14 @@ def _extract_number(payload: Dict[str, Any]) -> Optional[str]:
     number: Optional[str] = None
     if isinstance(payload.get("data"), dict):
         data = payload["data"]
-        key = isinstance(data.get("key"), dict) and data.get("key") or {}
-        number = key.get("remoteJid") or data.get("remoteJid")
+        # messages[0].key.remoteJid
+        if isinstance(data.get("messages"), list) and data["messages"]:
+            first = data["messages"][0]
+            key = isinstance(first.get("key"), dict) and first.get("key") or {}
+            number = key.get("remoteJid")
+        if not number:
+            key = isinstance(data.get("key"), dict) and data.get("key") or {}
+            number = key.get("remoteJid") or data.get("remoteJid")
     # Fallbacks for other payload shapes
     if not number:
         number = (
@@ -54,7 +60,11 @@ def _extract_text(payload: Dict[str, Any]) -> Optional[str]:
     # Event-style: payload.data.message
     if isinstance(payload.get("data"), dict):
         data = payload["data"]
-        msg = data.get("message") or {}
+        # messages[0].message
+        if isinstance(data.get("messages"), list) and data["messages"]:
+            msg = data["messages"][0].get("message") or {}
+        else:
+            msg = data.get("message") or {}
         if isinstance(msg, dict):
             # conversation
             if msg.get("conversation"):
