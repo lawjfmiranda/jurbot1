@@ -1,0 +1,14 @@
+{
+  "boas_vindas": "Olá! Sou a JustIA, assistente virtual do Escritório [Nome do Escritório]. Como posso te ajudar hoje?",
+  "areas_atuacao": {
+    "Direito de Família": "Atuamos em casos de divórcio, guarda de filhos, pensão alimentícia e inventários. Oferecemos suporte completo para resolver questões familiares de forma justa.",
+    "Direito do Trabalho": "Defendemos os direitos dos trabalhadores em casos de demissão indevida, horas extras não pagas, assédio moral e acidentes de trabalho.",
+    "outra_area": "No momento, não atuamos nesta área específica. Posso ajudar com alguma outra questão?"
+  },
+  "informacoes_gerais": {
+    "endereco": "Nosso escritório está localizado em [Seu Endereço Completo].",
+    "horario": "Nosso horário de funcionamento é de segunda a sexta, das 9h às 18h."
+  }
+}
+
+
