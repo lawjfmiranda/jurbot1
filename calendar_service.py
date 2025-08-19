@@ -1,4 +1,4 @@
-import os
+﻿import os
 import json
 from datetime import datetime, timedelta, time
 from typing import List, Tuple, Optional
@@ -22,7 +22,7 @@ BUSINESS_END_HOUR = int(os.getenv("BUSINESS_END_HOUR", "18"))
 
 def _get_service():
     if not SERVICE_ACCOUNT_JSON:
-        raise RuntimeError("GOOGLE_SERVICE_ACCOUNT_JSON não configurado.")
+        raise RuntimeError("GOOGLE_SERVICE_ACCOUNT_JSON nÃ£o configurado.")
     if SERVICE_ACCOUNT_JSON.strip().startswith("{"):
         credentials = service_account.Credentials.from_service_account_info(
             json.loads(SERVICE_ACCOUNT_JSON), scopes=GOOGLE_SCOPES

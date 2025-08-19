@@ -10,10 +10,10 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends \
     ca-certificates tzdata && \
     rm -rf /var/lib/apt/lists/*
 
-COPY ADV/requirements.txt /app/requirements.txt
+COPY requirements.txt /app/requirements.txt
 RUN pip install --upgrade pip && pip install -r /app/requirements.txt
 
-COPY ADV /app/ADV
+COPY . /app
 
 # Default envs (override in EasyPanel)
 ENV PORT=8000 \
@@ -22,7 +22,7 @@ ENV PORT=8000 \
 EXPOSE 8000
 
 # Gunicorn WSGI server
-CMD ["gunicorn", "-w", "2", "-k", "gthread", "--threads", "4", "-b", "0.0.0.0:8000", "ADV.app:application"]
+CMD ["gunicorn", "-w", "2", "-k", "gthread", "--threads", "4", "-b", "0.0.0.0:8000", "app:application"]
 
 
 

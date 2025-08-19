@@ -1,4 +1,4 @@
-import os
+﻿import os
 import requests
 
 
@@ -15,7 +15,7 @@ def _endpoint_send_text() -> str:
 
 def send_whatsapp_message(number: str, text: str) -> None:
     if not (EVOLUTION_BASE_URL and EVOLUTION_INSTANCE_ID and EVOLUTION_API_KEY):
-        raise RuntimeError("Evolution API não configurada. Defina EVOLUTION_API_BASE_URL, EVOLUTION_INSTANCE_ID, EVOLUTION_API_KEY.")
+        raise RuntimeError("Evolution API nÃ£o configurada. Defina EVOLUTION_API_BASE_URL, EVOLUTION_INSTANCE_ID, EVOLUTION_API_KEY.")
 
     payload = {
         "number": number,

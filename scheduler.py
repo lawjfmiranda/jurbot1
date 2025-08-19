@@ -1,10 +1,10 @@
-import os
+﻿import os
 from datetime import datetime, timedelta, timezone
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from ADV import database
-from ADV import whatsapp_service
+import database
+import whatsapp_service
 
 
 _scheduler: BackgroundScheduler | None = None
@@ -21,8 +21,8 @@ def _send_meeting_reminders():
         dt = datetime.fromisoformat(str(m["meeting_datetime"]).replace("Z", "+00:00")).astimezone(timezone.utc).strftime("%d/%m/%Y %H:%M")
         number = m["whatsapp_number"]
         text = (
-            f"Olá {name}! Lembrando da nossa consulta agendada para {dt}. "
-            "Se precisar reagendar, é só me avisar por aqui."
+            f"OlÃ¡ {name}! Lembrando da nossa consulta agendada para {dt}. "
+            "Se precisar reagendar, Ã© sÃ³ me avisar por aqui."
         )
         try:
             whatsapp_service.send_whatsapp_message(number, text)
@@ -36,8 +36,8 @@ def _send_followups():
         name = m.get("full_name") or "Cliente"
         number = m["whatsapp_number"]
         text = (
-            f"Olá {name}! Passando para agradecer pela sua consulta de ontem. "
-            "Esperamos que tenha sido produtiva. Se precisar de mais alguma informação ou desejar prosseguir, estamos à sua disposição."
+            f"OlÃ¡ {name}! Passando para agradecer pela sua consulta de ontem. "
+            "Esperamos que tenha sido produtiva. Se precisar de mais alguma informaÃ§Ã£o ou desejar prosseguir, estamos Ã  sua disposiÃ§Ã£o."
         )
         try:
             whatsapp_service.send_whatsapp_message(number, text)

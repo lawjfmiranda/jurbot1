@@ -18,8 +18,8 @@ Crie um arquivo `.env` na raiz do projeto com:
 ```
 PORT=8000
 TIMEZONE=America/Sao_Paulo
-DB_PATH=./ADV/advocacia.db
-FAQ_PATH=./ADV/faq.json
+DB_PATH=./advocacia.db
+FAQ_PATH=./faq.json
 
 # Evolution API
 EVOLUTION_API_BASE_URL=https://evolution.yourdomain.com/api
@@ -46,8 +46,8 @@ EMAIL_TO=suporte@yourdomain.com
 ```
 python -m venv .venv
 . .venv/Scripts/activate  # Windows PowerShell
-pip install -r ADV/requirements.txt
-python -m ADV.app
+pip install -r requirements.txt
+python -m app
 ```
 
 ## Webhook Evolution

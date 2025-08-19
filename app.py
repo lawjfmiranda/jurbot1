@@ -1,13 +1,13 @@
-import os
+﻿import os
 from typing import Any, Dict, List, Optional
 
 from flask import Flask, jsonify, request
 
 from dotenv import load_dotenv
-from ADV import database
-from ADV.chatbot_logic import Chatbot
-from ADV import whatsapp_service
-from ADV import scheduler as jobs_scheduler
+import database
+from chatbot_logic import Chatbot
+import whatsapp_service
+import scheduler as jobs_scheduler
 
 
 EVOLUTION_WEBHOOK_TOKEN = os.getenv("EVOLUTION_WEBHOOK_TOKEN")

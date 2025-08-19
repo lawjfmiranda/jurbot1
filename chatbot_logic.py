@@ -1,13 +1,13 @@
-import json
+﻿import json
 import os
 import re
 from datetime import datetime, timedelta
 from threading import Lock
 from typing import Any, Dict, List, Optional
 
-from ADV import database
-from ADV import calendar_service
-from ADV import notification_service
+from adv import database
+from adv import calendar_service
+from adv import notification_service
 
 
 FAQ_PATH = os.getenv("FAQ_PATH", os.path.join(os.path.dirname(__file__), "faq.json"))
@@ -57,7 +57,7 @@ conversation_state = ConversationState()
 
 
 WELCOME_FALLBACK = (
-    "Olá! Sou a JustIA, assistente virtual do Escritório. Como posso te ajudar hoje?"
+    "OlÃ¡! Sou a JustIA, assistente virtual do EscritÃ³rio. Como posso te ajudar hoje?"
 )
 
 
@@ -65,20 +65,20 @@ def build_menu() -> str:
     boas_vindas = FAQ.get("boas_vindas", WELCOME_FALLBACK)
     menu = (
         f"{boas_vindas}\n\n"
-        "Escolha uma opção:\n"
-        "1. Conhecer nossas áreas de atuação\n"
+        "Escolha uma opÃ§Ã£o:\n"
+        "1. Conhecer nossas Ã¡reas de atuaÃ§Ã£o\n"
         "2. Agendar uma consulta\n"
-        "3. Informações de contato e horário"
+        "3. InformaÃ§Ãµes de contato e horÃ¡rio"
     )
     return menu
 
 
 HELP_KEYWORDS = [
-    "demit", "demiss", "acidente", "pensão", "pensao", "inventár", "inventar",
+    "demit", "demiss", "acidente", "pensÃ£o", "pensao", "inventÃ¡r", "inventar",
     "processo", "ajuda", "advog", "audien", "prazo", "urgente", "guarda", "rescis",
 ]
 
-GREET_KEYWORDS = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "menu", "help"]
+GREET_KEYWORDS = ["oi", "olÃ¡", "ola", "bom dia", "boa tarde", "boa noite", "menu", "help"]
 
 
 def detect_intent(message: str) -> str:
@@ -94,8 +94,8 @@ def detect_intent(message: str) -> str:
 def format_areas_atuacao() -> str:
     areas = FAQ.get("areas_atuacao", {})
     if not areas:
-        return "Nossas áreas de atuação estão temporariamente indisponíveis."
-    lines = ["Áreas de Atuação:"]
+        return "Nossas Ã¡reas de atuaÃ§Ã£o estÃ£o temporariamente indisponÃ­veis."
+    lines = ["Ãreas de AtuaÃ§Ã£o:"]
     for area, desc in areas.items():
         lines.append(f"- {area}: {desc}")
     lines.append("\nPosso te ajudar com mais alguma coisa? Digite 2 para agendar uma consulta.")
@@ -104,22 +104,22 @@ def format_areas_atuacao() -> str:
 
 def format_informacoes_gerais() -> str:
     info = FAQ.get("informacoes_gerais", {})
-    endereco = info.get("endereco", "Endereço não informado.")
-    horario = info.get("horario", "Horário não informado.")
+    endereco = info.get("endereco", "EndereÃ§o nÃ£o informado.")
+    horario = info.get("horario", "HorÃ¡rio nÃ£o informado.")
     return (
-        f"Endereço: {endereco}\n"
-        f"Horário de funcionamento: {horario}\n\n"
+        f"EndereÃ§o: {endereco}\n"
+        f"HorÃ¡rio de funcionamento: {horario}\n\n"
         "Deseja agendar uma consulta? Digite 2."
     )
 
 
 def present_slots(slots: List[tuple[datetime, datetime]]) -> str:
     if not slots:
-        return "No momento não há horários disponíveis. Posso tentar novamente mais tarde."
-    lines = ["Temos os seguintes horários livres:"]
+        return "No momento nÃ£o hÃ¡ horÃ¡rios disponÃ­veis. Posso tentar novamente mais tarde."
+    lines = ["Temos os seguintes horÃ¡rios livres:"]
     for idx, (start, _end) in enumerate(slots[:3], start=1):
-        lines.append(f"{idx}. {start.strftime('%A, %d/%m, às %H:%M')}")
-    lines.append("\nResponda com o número da opção desejada (1, 2 ou 3).")
+        lines.append(f"{idx}. {start.strftime('%A, %d/%m, Ã s %H:%M')}")
+    lines.append("\nResponda com o nÃºmero da opÃ§Ã£o desejada (1, 2 ou 3).")
     return "\n".join(lines)
 
 
@@ -143,8 +143,8 @@ class Chatbot:
             if intent == "LEAD":
                 conversation_state.set(number, "state", "LEAD_Q_START")
                 return [
-                    "Entendi. Para que eu possa te ajudar da melhor forma e direcionar ao advogado especialista, preciso fazer algumas perguntas rápidas, tudo bem?",
-                    "Qual é o seu nome completo?",
+                    "Entendi. Para que eu possa te ajudar da melhor forma e direcionar ao advogado especialista, preciso fazer algumas perguntas rÃ¡pidas, tudo bem?",
+                    "Qual Ã© o seu nome completo?",
                 ]
             if intent in ("GREET", "UNKNOWN"):
                 conversation_state.set(number, "state", "MENU")
@@ -172,13 +172,13 @@ class Chatbot:
             data["full_name"] = message
             conversation_state.set(number, "data", data)
             conversation_state.set(number, "state", "ASK_EMAIL")
-            return ["Perfeito. Qual é o seu e-mail para contato?"]
+            return ["Perfeito. Qual Ã© o seu e-mail para contato?"]
 
         if current == "ASK_EMAIL":
             # simple email validation
             email = message.strip()
             if email and not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
-                return ["Poderia verificar o e-mail informado? Parece não estar no formato correto. Ex: nome@dominio.com"]
+                return ["Poderia verificar o e-mail informado? Parece nÃ£o estar no formato correto. Ex: nome@dominio.com"]
             data["email"] = email
             conversation_state.set(number, "data", data)
             conversation_state.set(number, "state", "ASK_SUMMARY")
@@ -189,13 +189,13 @@ class Chatbot:
             conversation_state.set(number, "data", data)
             conversation_state.set(number, "state", "ASK_URGENCY")
             return [
-                "Para entendermos a urgência, você possui algum prazo legal ou audiência se aproximando? (sim/não)",
+                "Para entendermos a urgÃªncia, vocÃª possui algum prazo legal ou audiÃªncia se aproximando? (sim/nÃ£o)",
             ]
 
         if current == "ASK_URGENCY":
             urgency_text = message.lower()
-            high_priority = contains_any(urgency_text, ["sim", "prazo", "audiên", "audien", "urgente"])
-            priority = "ALTA" if high_priority else "MÉDIA"
+            high_priority = contains_any(urgency_text, ["sim", "prazo", "audiÃªn", "audien", "urgente"])
+            priority = "ALTA" if high_priority else "MÃ‰DIA"
             data["lead_priority"] = priority
             # Persist client
             client_id = database.upsert_client(
@@ -212,7 +212,7 @@ class Chatbot:
                 f"Nome: {data.get('full_name') or ''}\n"
                 f"Contato: {number} / {data.get('email') or ''}\n"
                 f"Resumo do Caso: {data.get('case_summary') or ''}\n"
-                f"Urgência: {'Possui prazo/audiência/urgência' if priority=='ALTA' else 'Sem urgência próxima'}\n"
+                f"UrgÃªncia: {'Possui prazo/audiÃªncia/urgÃªncia' if priority=='ALTA' else 'Sem urgÃªncia prÃ³xima'}\n"
             )
             try:
                 notification_service.send_internal_notification(subject, content)
@@ -228,7 +228,7 @@ class Chatbot:
 
             nome = data.get("full_name") or "Cliente"
             thank_you = (
-                f"Obrigado, {nome}. Suas informações foram recebidas e nossa equipe já foi notificada. "
+                f"Obrigado, {nome}. Suas informaÃ§Ãµes foram recebidas e nossa equipe jÃ¡ foi notificada. "
                 "Para agilizar seu atendimento, vamos marcar uma consulta inicial?"
             )
             return [thank_you, present_slots(slots)]
@@ -247,13 +247,13 @@ class Chatbot:
                 if fresh:
                     conversation_state.set(number, "data", {**data, "slots": [(s.isoformat(), e.isoformat()) for s, e in fresh[:3]]})
                     return [present_slots(fresh)]
-                return ["No momento não há horários disponíveis para agendamento. Posso verificar novamente mais tarde ou coletar sua preferência de horários."]
+                return ["No momento nÃ£o hÃ¡ horÃ¡rios disponÃ­veis para agendamento. Posso verificar novamente mais tarde ou coletar sua preferÃªncia de horÃ¡rios."]
             if choice_match and slots:
                 idx = int(message) - 1
                 try:
                     start_iso, end_iso = slots[idx]
                 except IndexError:
-                    return ["Opção inválida. Por favor, responda com 1, 2 ou 3."]
+                    return ["OpÃ§Ã£o invÃ¡lida. Por favor, responda com 1, 2 ou 3."]
 
                 start_dt = datetime.fromisoformat(start_iso)
                 end_dt = datetime.fromisoformat(end_iso)
@@ -278,11 +278,11 @@ class Chatbot:
                 confirm = (
                     "Perfeito! Sua consulta foi marcada.\n"
                     f"Data e hora: {start_dt.strftime('%d/%m/%Y %H:%M')}\n"
-                    "Você receberá um lembrete 24 horas antes. Se precisar ajustar, é só me avisar."
+                    "VocÃª receberÃ¡ um lembrete 24 horas antes. Se precisar ajustar, Ã© sÃ³ me avisar."
                 )
                 return [confirm]
             else:
-                return ["Não entendi sua escolha. Responda com 1, 2 ou 3 para selecionar um horário."]
+                return ["NÃ£o entendi sua escolha. Responda com 1, 2 ou 3 para selecionar um horÃ¡rio."]
 
         # Default fallback
         conversation_state.set(number, "state", "MENU")

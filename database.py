@@ -1,4 +1,4 @@
-import os
+﻿import os
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timedelta, date, timezone
@@ -43,7 +43,7 @@ def initialize_database() -> None:
                 full_name TEXT,
                 email TEXT,
                 case_summary TEXT,
-                lead_priority TEXT CHECK(lead_priority IN ('ALTA','MÉDIA','BAIXA')),
+                lead_priority TEXT CHECK(lead_priority IN ('ALTA','MÃ‰DIA','BAIXA')),
                 creation_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             );
             """
@@ -73,7 +73,7 @@ def initialize_database() -> None:
 def upsert_client(whatsapp_number: str, full_name: str | None = None, email: str | None = None,
                   case_summary: str | None = None, lead_priority: str | None = None) -> int:
     """
-    Insere ou atualiza um cliente pelo número de WhatsApp. Retorna o client_id.
+    Insere ou atualiza um cliente pelo nÃºmero de WhatsApp. Retorna o client_id.
     """
     with get_connection() as conn:
         cursor = conn.execute("SELECT id FROM clientes WHERE whatsapp_number = ?", (whatsapp_number,))
