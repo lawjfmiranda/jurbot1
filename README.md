@@ -51,8 +51,21 @@ python -m app
 ```
 
 ## Webhook Evolution
-Aponte o webhook de mensagens para: `https://seu-dominio/webhook/evolution`.
-Opcionalmente configure cabeçalho `X-Webhook-Token` com `EVOLUTION_WEBHOOK_TOKEN`.
+Você pode configurar via painel ou API. URL recomendada: `https://seu-dominio/webhook/evolution?token=EVOLUTION_WEBHOOK_TOKEN`.
+Ou use a API oficial ([set webhook](https://doc.evolution-api.com/v2/api-reference/webhook/set)) com:
+```bash
+curl --request POST \
+  --url "$EVOLUTION_API_BASE_URL/webhook/set/$EVOLUTION_INSTANCE_ID" \
+  --header 'Content-Type: application/json' \
+  --header "apikey: $EVOLUTION_API_KEY" \
+  --data '{
+  "enabled": true,
+  "url": "https://seu-dominio/webhook/evolution?token='"$EVOLUTION_WEBHOOK_TOKEN"'",
+  "webhookByEvents": true,
+  "webhookBase64": false,
+  "events": ["MESSAGE"]
+}'
+```
 
 ## Observações
 - Datas são persistidas em UTC no banco.

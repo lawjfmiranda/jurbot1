@@ -62,8 +62,12 @@ def evolution_webhook():
     body = request.get_json(silent=True) or {}
     messages: List[Dict[str, Any]] = []
 
-    if isinstance(body, dict) and "messages" in body and isinstance(body["messages"], list):
+    # Evolution pode enviar eventos por mensagem (webhookByEvents) ou listas em 'messages'
+    if isinstance(body, dict) and isinstance(body.get("messages"), list):
         messages = body["messages"]
+    elif isinstance(body, dict) and body.get("event"):
+        # Evento único
+        messages = [body]
     else:
         messages = [body]
 
