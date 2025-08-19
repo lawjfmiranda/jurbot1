@@ -55,10 +55,9 @@ def health():
 
 @app.route("/webhook/evolution", methods=["POST"])
 def evolution_webhook():
-    if EVOLUTION_WEBHOOK_TOKEN:
-        token = request.headers.get("X-Webhook-Token")
-        if token != EVOLUTION_WEBHOOK_TOKEN:
-            return jsonify({"error": "unauthorized"}), 401
+    token = request.headers.get("X-Webhook-Token") or request.args.get("token")
+    if EVOLUTION_WEBHOOK_TOKEN and token != EVOLUTION_WEBHOOK_TOKEN:
+        return jsonify({"error": "unauthorized"}), 401
 
     body = request.get_json(silent=True) or {}
     messages: List[Dict[str, Any]] = []
