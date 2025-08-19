@@ -23,19 +23,21 @@ logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO), format="%(a
 
 
 def _extract_number(payload: Dict[str, Any]) -> Optional[str]:
-    # Evolution variants
-    number = (
-        payload.get("number")
-        or payload.get("from")
-        or payload.get("chatId")
-        or payload.get("remoteJid")
-        or payload.get("sender")
-    )
-    # Event-style: payload.data.key.remoteJid
-    if not number and isinstance(payload.get("data"), dict):
+    # Prefer event-style contact id first (avoid using 'sender' which is the instance number)
+    number: Optional[str] = None
+    if isinstance(payload.get("data"), dict):
         data = payload["data"]
         key = isinstance(data.get("key"), dict) and data.get("key") or {}
         number = key.get("remoteJid") or data.get("remoteJid")
+    # Fallbacks for other payload shapes
+    if not number:
+        number = (
+            payload.get("number")
+            or payload.get("from")
+            or payload.get("chatId")
+            or payload.get("remoteJid")
+            or None  # do NOT use 'sender' as it may be the instance number
+        )
     if not number:
         return None
     # normalize patterns like 5511999999999@c.us
