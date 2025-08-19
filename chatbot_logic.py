@@ -5,9 +5,9 @@ from datetime import datetime, timedelta
 from threading import Lock
 from typing import Any, Dict, List, Optional
 
-from adv import database
-from adv import calendar_service
-from adv import notification_service
+import database
+import calendar_service
+import notification_service
 
 
 FAQ_PATH = os.getenv("FAQ_PATH", os.path.join(os.path.dirname(__file__), "faq.json"))
