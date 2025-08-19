@@ -1,4 +1,6 @@
 ﻿import os
+import json
+import logging
 from typing import Any, Dict, List, Optional
 
 from flask import Flask, jsonify, request
@@ -15,6 +17,9 @@ EVOLUTION_WEBHOOK_TOKEN = os.getenv("EVOLUTION_WEBHOOK_TOKEN")
 
 app = Flask(__name__)
 chatbot = Chatbot()
+
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO), format="%(asctime)s %(levelname)s %(name)s - %(message)s")
 
 
 def _extract_number(payload: Dict[str, Any]) -> Optional[str]:
@@ -91,9 +96,16 @@ def health():
 def evolution_webhook():
     token = request.headers.get("X-Webhook-Token") or request.args.get("token")
     if EVOLUTION_WEBHOOK_TOKEN and token != EVOLUTION_WEBHOOK_TOKEN:
+        app.logger.warning("Webhook auth failed: missing/invalid token")
         return jsonify({"error": "unauthorized"}), 401
 
-    body = request.get_json(silent=True) or {}
+    body = request.get_json(silent=True)
+    if body is None:
+        try:
+            body = json.loads(request.data.decode("utf-8")) if request.data else {}
+        except Exception:
+            body = {}
+    app.logger.info(f"Webhook received type={type(body)} keys={list(body.keys()) if isinstance(body, dict) else 'n/a'}")
     messages: List[Dict[str, Any]] = []
 
     # Evolution pode enviar eventos por mensagem (webhookByEvents) ou listas em 'messages'
@@ -105,24 +117,38 @@ def evolution_webhook():
     else:
         messages = [body]
 
-    for msg in messages:
+    app.logger.info(f"Webhook messages_count={len(messages)}")
+    for idx, msg in enumerate(messages):
         # Ignore messages sent by our own instance (status updates, echoes)
         own = msg.get("fromMe") or msg.get("from_me")
         if own is None and isinstance(msg.get("data"), dict):
             own = msg["data"].get("key", {}).get("fromMe")
         if str(own) in ("True", "true", "1"):
+            app.logger.debug(f"Ignored own message idx={idx}")
             continue
         number = _extract_number(msg)
         text = _extract_text(msg)
         if not number or not text:
+            short = None
+            try:
+                short = json.dumps(msg)[:300]
+            except Exception:
+                short = str(msg)[:300]
+            app.logger.info(f"Skipped msg idx={idx} number={number} text_len={(len(text) if text else 0)} payload={short}")
             continue
 
-        responses = chatbot.handle_incoming_message(number, text)
+        app.logger.info(f"Incoming idx={idx} number={number} text='{text[:120]}'")
+        try:
+            responses = chatbot.handle_incoming_message(number, text)
+        except Exception:
+            app.logger.exception("Error in chatbot logic")
+            continue
         for r in responses:
             try:
                 whatsapp_service.send_whatsapp_message(number, r)
-            except Exception as e:
-                app.logger.error(f"Failed to send WhatsApp message to {number}: {e}")
+                app.logger.info(f"Sent reply to {number}: '{r[:120]}'")
+            except Exception:
+                app.logger.exception(f"Failed to send WhatsApp message to {number}")
 
     return jsonify({"status": "received"})
 
