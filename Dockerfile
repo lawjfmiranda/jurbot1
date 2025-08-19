@@ -22,7 +22,7 @@ ENV PORT=8000 \
 EXPOSE 8000
 
 # Gunicorn WSGI server
-CMD ["gunicorn", "-w", "2", "-k", "gthread", "--threads", "4", "-b", "0.0.0.0:8000", "app:application"]
+CMD ["gunicorn", "-w", "1", "-k", "gthread", "--threads", "4", "-b", "0.0.0.0:8000", "app:application"]
 
 
 

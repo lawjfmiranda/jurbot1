@@ -57,7 +57,7 @@ conversation_state = ConversationState()
 
 
 WELCOME_FALLBACK = (
-    "OlÃ¡! Sou a JustIA, assistente virtual do EscritÃ³rio. Como posso te ajudar hoje?"
+    "Olá! 🤝 Sou a JustIA, assistente virtual do Escritório. Como posso te ajudar hoje?"
 )
 
 
@@ -65,20 +65,20 @@ def build_menu() -> str:
     boas_vindas = FAQ.get("boas_vindas", WELCOME_FALLBACK)
     menu = (
         f"{boas_vindas}\n\n"
-        "Escolha uma opÃ§Ã£o:\n"
-        "1. Conhecer nossas Ã¡reas de atuaÃ§Ã£o\n"
-        "2. Agendar uma consulta\n"
-        "3. InformaÃ§Ãµes de contato e horÃ¡rio"
+        "Escolha uma opção:\n"
+        "1️⃣  Conhecer nossas áreas de atuação\n"
+        "2️⃣  Agendar uma consulta\n"
+        "3️⃣  Informações de contato e horário"
     )
     return menu
 
 
 HELP_KEYWORDS = [
-    "demit", "demiss", "acidente", "pensÃ£o", "pensao", "inventÃ¡r", "inventar",
+    "demit", "demiss", "acidente", "pensao", "pensão", "inventar",
     "processo", "ajuda", "advog", "audien", "prazo", "urgente", "guarda", "rescis",
 ]
 
-GREET_KEYWORDS = ["oi", "olÃ¡", "ola", "bom dia", "boa tarde", "boa noite", "menu", "help"]
+GREET_KEYWORDS = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "menu", "help"]
 
 
 def detect_intent(message: str) -> str:
@@ -86,7 +86,9 @@ def detect_intent(message: str) -> str:
         return "LEAD"
     if contains_any(message, GREET_KEYWORDS):
         return "GREET"
-    if re.fullmatch(r"[1-3]", message.strip()):
+    # aceita variações: "1", "1.", "opção 1", etc
+    m = re.search(r"\b([1-3])\b", message.strip())
+    if m:
         return "MENU_CHOICE"
     return "UNKNOWN"
 
@@ -94,32 +96,32 @@ def detect_intent(message: str) -> str:
 def format_areas_atuacao() -> str:
     areas = FAQ.get("areas_atuacao", {})
     if not areas:
-        return "Nossas Ã¡reas de atuaÃ§Ã£o estÃ£o temporariamente indisponÃ­veis."
-    lines = ["Ãreas de AtuaÃ§Ã£o:"]
+        return "Nossas áreas de atuação estão temporariamente indisponíveis."
+    lines = ["Áreas de Atuação:"]
     for area, desc in areas.items():
-        lines.append(f"- {area}: {desc}")
-    lines.append("\nPosso te ajudar com mais alguma coisa? Digite 2 para agendar uma consulta.")
+        lines.append(f"• {area}: {desc}")
+    lines.append("\nPosso te ajudar com mais alguma coisa? Digite 2️⃣ para agendar uma consulta.")
     return "\n".join(lines)
 
 
 def format_informacoes_gerais() -> str:
     info = FAQ.get("informacoes_gerais", {})
-    endereco = info.get("endereco", "EndereÃ§o nÃ£o informado.")
-    horario = info.get("horario", "HorÃ¡rio nÃ£o informado.")
+    endereco = info.get("endereco", "Endereço não informado.")
+    horario = info.get("horario", "Horário não informado.")
     return (
-        f"EndereÃ§o: {endereco}\n"
-        f"HorÃ¡rio de funcionamento: {horario}\n\n"
-        "Deseja agendar uma consulta? Digite 2."
+        f"📍 Endereço: {endereco}\n"
+        f"🕘 Horário de funcionamento: {horario}\n\n"
+        "Deseja agendar uma consulta? Digite 2️⃣."
     )
 
 
 def present_slots(slots: List[tuple[datetime, datetime]]) -> str:
     if not slots:
-        return "No momento nÃ£o hÃ¡ horÃ¡rios disponÃ­veis. Posso tentar novamente mais tarde."
-    lines = ["Temos os seguintes horÃ¡rios livres:"]
+        return "No momento não há horários disponíveis. Posso tentar novamente mais tarde."
+    lines = ["Temos os seguintes horários livres:"]
     for idx, (start, _end) in enumerate(slots[:3], start=1):
-        lines.append(f"{idx}. {start.strftime('%A, %d/%m, Ã s %H:%M')}")
-    lines.append("\nResponda com o nÃºmero da opÃ§Ã£o desejada (1, 2 ou 3).")
+        lines.append(f"{idx}️⃣  {start.strftime('%d/%m/%Y')} às {start.strftime('%H:%M')}")
+    lines.append("\nResponda com o número da opção desejada (1, 2 ou 3).")
     return "\n".join(lines)
 
 
@@ -153,16 +155,17 @@ class Chatbot:
         if current == "MENU":
             intent = detect_intent(message)
             if intent == "MENU_CHOICE":
-                if message == "1":
+                selected = re.search(r"\b([1-3])\b", message).group(1)
+                if selected == "1":
                     return [format_areas_atuacao()]
-                if message == "2":
+                if selected == "2":
                     # Start scheduling flow
                     conversation_state.set(number, "state", "SCHEDULING_SHOW_SLOTS")
                     slots = calendar_service.get_next_available_slots()
                     # Persist slots in state for selection
                     conversation_state.set(number, "data", {"slots": [(s.isoformat(), e.isoformat()) for s, e in slots[:3]]})
                     return [present_slots(slots)]
-                if message == "3":
+                if selected == "3":
                     return [format_informacoes_gerais()]
             # Fallback to menu
             return [build_menu()]
