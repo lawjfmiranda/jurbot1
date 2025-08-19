@@ -92,6 +92,29 @@ def health():
     return jsonify({"status": "ok"})
 
 
+@app.route("/debug/echo", methods=["GET", "POST"])
+def debug_echo():
+    token = request.headers.get("X-Webhook-Token") or request.args.get("token")
+    body = request.get_json(silent=True)
+    try:
+        raw = request.data.decode("utf-8") if request.data else ""
+    except Exception:
+        raw = ""
+    app.logger.info(
+        {
+            "debug": "echo",
+            "method": request.method,
+            "path": request.path,
+            "args": request.args.to_dict(flat=True),
+            "headers_subset": {k: request.headers.get(k) for k in ["Content-Type", "User-Agent", "X-Webhook-Token", "Content-Length"]},
+            "token": token,
+            "json_keys": list(body.keys()) if isinstance(body, dict) else None,
+            "raw_len": len(raw),
+        }
+    )
+    return jsonify({"ok": True, "received": True})
+
+
 @app.route("/webhook/evolution", methods=["POST"])
 def evolution_webhook():
     token = request.headers.get("X-Webhook-Token") or request.args.get("token")
