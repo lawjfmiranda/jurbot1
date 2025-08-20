@@ -68,7 +68,8 @@ def build_menu() -> str:
         "Escolha uma opção:\n"
         "1️⃣  Conhecer nossas áreas de atuação\n"
         "2️⃣  Agendar uma consulta\n"
-        "3️⃣  Informações de contato e horário"
+        "3️⃣  Informações de contato e horário\n"
+        "4️⃣  Meus agendamentos"
     )
     return menu
 
@@ -177,7 +178,7 @@ class Chatbot:
                 conversation_state.set(number, "state", "CANCEL_LOOKUP")
                 return ["Certo, vamos cancelar sua consulta. Informe a data (dd/mm/aaaa) ou digite 'todas' para listar."]
             if intent == "MENU_CHOICE":
-                selected = re.search(r"\b([1-3])\b", message).group(1)
+                selected = re.search(r"\b([1-4])\b", message).group(1)
                 if selected == "1":
                     return [format_areas_atuacao()]
                 if selected == "2":
@@ -188,6 +189,17 @@ class Chatbot:
                     ]
                 if selected == "3":
                     return [format_informacoes_gerais()]
+                if selected == "4":
+                    # listar próximos agendamentos do número
+                    rows = database.get_future_meetings(datetime.now())
+                    rows = [r for r in rows if r["whatsapp_number"] == number]
+                    if not rows:
+                        return ["Você não possui consultas futuras registradas."]
+                    items = []
+                    for idx, r in enumerate(rows[:5], start=1):
+                        when = datetime.fromisoformat(str(r["meeting_datetime"]).replace("Z", "+00:00")).strftime("%d/%m/%Y %H:%M")
+                        items.append(f"{idx}️⃣  {when}")
+                    return ["Seus próximos agendamentos:\n" + "\n".join(items) + "\n\nPara cancelar, digite 'cancelar'."]
             # Fallback to menu
             return [build_menu()]
 
