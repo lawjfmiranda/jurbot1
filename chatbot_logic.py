@@ -14,6 +14,7 @@ import database
 import calendar_service
 import notification_service
 import ai_service
+import ai_orchestrator
 
 
 FAQ_PATH = os.getenv("FAQ_PATH", os.path.join(os.path.dirname(__file__), "faq.json"))
@@ -218,7 +219,16 @@ class Chatbot:
                     return [reply]
             if intent in ("GREET", "UNKNOWN"):
                 conversation_state.set(number, "state", "FREE_CHAT")
-                return [greeting_text(number)]
+                # Delegar primeira resposta para a IA
+                decision = ai_orchestrator.decide(number, message, state)
+                if decision.get("agenda"):
+                    conversation_state.set(number, "state", "SCHEDULING_PREF_PERIOD")
+                    return [
+                        "Ótimo! Para agilizar, você prefere ser atendido de manhã ou à tarde? (responda: manhã, tarde ou indiferente)",
+                        "Se desejar, responda 'voltar' para retornar ao menu.",
+                    ]
+                reply = decision.get("reply") or greeting_text(number)
+                return [reply]
 
         if current == "FREE_CHAT":
             # Comandos rápidos
@@ -228,8 +238,9 @@ class Chatbot:
             if contains_any(message, ["cancelar", "desmarcar", "remarcar"]):
                 conversation_state.set(number, "state", "CANCEL_LOOKUP")
                 return ["Certo, vamos cancelar sua consulta. Informe a data (dd/mm/aaaa) ou digite 'todas' para listar as próximas do seu número."]
-            # Iniciar agendamento por linguagem natural
-            if contains_any(message, ["agendar", "marcar", "agendamento", "consulta", "quero consulta", "quero agendar", "agende", "agenda"]):
+            # Orquestração IA primeiro (decide se agenda ou responde)
+            decision = ai_orchestrator.decide(number, message, state)
+            if decision.get("agenda"):
                 # Verifica se já há consulta futura para este número
                 existing = [r for r in database.get_future_meetings(datetime.utcnow()) if r["whatsapp_number"] == number]
                 if existing:
@@ -256,6 +267,8 @@ class Chatbot:
                     "Ótimo! Para agilizar, você prefere ser atendido de manhã ou à tarde? (responda: manhã, tarde ou indiferente)",
                     "Se desejar, responda 'voltar' para retornar ao menu."
                 ]
+            if decision.get("reply"):
+                return [decision["reply"]]
             # Opções 1-4 funcionam aqui também
             m = re.search(r"\b([1-4])\b", message)
             if m:
