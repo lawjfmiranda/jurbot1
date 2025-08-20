@@ -24,8 +24,15 @@ def _ensure_client():
         return None
     try:
         genai.configure(api_key=GEMINI_API_KEY)
+        # Configuração para respostas mais naturais e consistentes
+        generation_config = genai.types.GenerationConfig(
+            temperature=0.7,
+            top_p=0.95,
+            top_k=40,
+            max_output_tokens=1024,
+        )
         logger.debug("ai_service: configured generative model", extra={"model": GEMINI_MODEL})
-        return genai.GenerativeModel(GEMINI_MODEL)
+        return genai.GenerativeModel(GEMINI_MODEL, generation_config=generation_config)
     except Exception:
         logger.exception("ai_service: failed to initialize client")
         return None
@@ -37,12 +44,40 @@ def _ensure_quality_client():
         return None
     try:
         genai.configure(api_key=GEMINI_API_KEY)
+        # Configuração para respostas mais precisas
+        generation_config = genai.types.GenerationConfig(
+            temperature=0.5,
+            top_p=0.9,
+            top_k=30,
+            max_output_tokens=2048,
+        )
         logger.debug("ai_service: configured quality model", extra={"model": GEMINI_MODEL_QUALITY})
-        return genai.GenerativeModel(GEMINI_MODEL_QUALITY)
+        return genai.GenerativeModel(GEMINI_MODEL_QUALITY, generation_config=generation_config)
     except Exception:
         logger.exception("ai_service: failed to initialize quality client")
         return None
 
+
+# Função auxiliar para chamar API com configurações customizadas
+def _call_gemini_api(prompt: str, temperature: float = 0.7, max_tokens: int = 1024) -> str:
+    """Chama Gemini API com configurações customizadas."""
+    if not GEMINI_API_KEY or not genai:
+        return ""
+    
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+        generation_config = genai.types.GenerationConfig(
+            temperature=temperature,
+            top_p=0.95,
+            top_k=40,
+            max_output_tokens=max_tokens,
+        )
+        model = genai.GenerativeModel(GEMINI_MODEL, generation_config=generation_config)
+        response = model.generate_content(prompt)
+        return response.text if response else ""
+    except Exception as e:
+        logger.error(f"Gemini API error: {e}")
+        return ""
 
 ALLOWED_INTENTS = [
     "saudacao",

@@ -168,16 +168,30 @@ class Chatbot:
         self.logger = logging.getLogger(self.__class__.__name__)
 
     def handle_incoming_message(self, raw_number: str, message: str) -> List[str]:
+        """
+        Processa mensagem usando o AI Orchestrator para conversação natural completa.
+        """
         number = normalize_number(raw_number)
         state = conversation_state.get(number)
-        current = state.get("state", "INIT")
-        data = state.get("data", {})
         message = message.strip()
 
         # Initialize DB client record if not exists
         database.upsert_client(whatsapp_number=number)
+        
+        # Delegar TUDO para o AI Orchestrator
+        result = ai_orchestrator.ai_manager.process(number, message, state)
+        
+        # Atualizar estado da conversa
+        new_state = result.get("new_state", state)
+        conversation_state.set(number, "state", new_state.get("state", "FREE"))
+        conversation_state.set(number, "data", new_state.get("data", {}))
+        
+        # Retornar respostas
+        return result.get("replies", ["Desculpe, não consegui processar sua mensagem."])
 
-        # Flow control
+        # TODO: Código antigo abaixo será removido após testes
+        """
+        # Flow control - CÓDIGO ANTIGO DESATIVADO
         if current == "INIT":
             intent = detect_intent(message)
             self.logger.info("chatbot.state", extra={"user": number, "state": current, "intent": intent})
@@ -651,5 +665,6 @@ class Chatbot:
         # Default fallback: mantém conversa natural
         conversation_state.set(number, "state", "FREE_CHAT")
         return [greeting_text()]
+        """  # FIM DO CÓDIGO ANTIGO DESATIVADO
 
 
