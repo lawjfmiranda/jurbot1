@@ -263,7 +263,10 @@ def evolution_webhook():
             continue
 
         # Admin commands (#pause [min], #resume, #status)
+        app.logger.info(f"Checking admin: ADMIN_WHATSAPP='{ADMIN_WHATSAPP}', number='{number}', normalized_admin='{_normalize_digits(ADMIN_WHATSAPP)}', normalized_number='{_normalize_digits(number)}'")
+        
         if ADMIN_WHATSAPP and _normalize_digits(number) == _normalize_digits(ADMIN_WHATSAPP):
+            app.logger.info(f"Admin command detected from {number}: '{text}'")
             cmd = (text or "").strip().lower()
             if cmd.startswith("#pause") or cmd.startswith("#pausa"):
                 parts = cmd.split()
@@ -273,25 +276,34 @@ def evolution_webhook():
                         minutes = int(parts[1])
                     except Exception:
                         minutes = None
+                app.logger.info(f"Executing pause command with minutes={minutes}")
                 ack = _pause_bot(minutes)
+                app.logger.info(f"Pause result: {ack}")
                 try:
                     whatsapp_service.send_whatsapp_message(number, ack)
+                    app.logger.info(f"Pause ack sent successfully")
                 except Exception:
                     app.logger.exception("admin pause ack failed")
                 continue
             if cmd.startswith("#resume") or cmd.startswith("#retomar") or cmd.startswith("#despausar"):
+                app.logger.info(f"Executing resume command")
                 ack = _resume_bot()
+                app.logger.info(f"Resume result: {ack}")
                 try:
                     whatsapp_service.send_whatsapp_message(number, ack)
+                    app.logger.info(f"Resume ack sent successfully")
                 except Exception:
                     app.logger.exception("admin resume ack failed")
                 continue
             if cmd.startswith("#status"):
-                status = "pausado" if _is_bot_paused_now() else "ativo"
+                is_paused = _is_bot_paused_now()
+                status = "pausado" if is_paused else "ativo"
+                app.logger.info(f"Status check: is_paused={is_paused}, status='{status}'")
                 try:
                     whatsapp_service.send_whatsapp_message(number, f"Status do bot: {status}")
+                    app.logger.info(f"Status sent successfully")
                 except Exception:
-                    pass
+                    app.logger.exception("admin status ack failed")
                 continue
 
         # rate limit
