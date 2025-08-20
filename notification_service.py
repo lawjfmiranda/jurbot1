@@ -52,3 +52,10 @@ def send_internal_notification(subject: str, content: str) -> None:
         print(f"[NOTIFICATION] {subject}\n{content}")
 
 
+def notify_error(subject: str, content: str) -> None:
+    try:
+        send_internal_notification(subject, content)
+    except Exception:
+        pass
+
+

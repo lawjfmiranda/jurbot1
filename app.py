@@ -190,8 +190,13 @@ def evolution_webhook():
         app.logger.info(f"Incoming idx={idx} number={number} text='{text[:120]}'")
         try:
             responses = chatbot.handle_incoming_message(number, text)
-        except Exception:
+        except Exception as e:
             app.logger.exception("Error in chatbot logic")
+            try:
+                import notification_service
+                notification_service.notify_error("Erro no webhook JustIA", f"Number: {number}\nError: {e}")
+            except Exception:
+                pass
             continue
         for r in responses:
             try:
@@ -202,6 +207,43 @@ def evolution_webhook():
 
     return jsonify({"status": "received"})
 
+
+@app.route("/admin/clients", methods=["GET"])
+def admin_clients():
+    token = request.headers.get("X-Admin-Token") or request.args.get("token")
+    if token != os.getenv("ADMIN_TOKEN"):
+        return jsonify({"error": "unauthorized"}), 401
+    q = request.args.get("q")
+    rows = database.list_clients(q)
+    return jsonify([
+        {
+            "id": r["id"],
+            "whatsapp_number": r["whatsapp_number"],
+            "full_name": r["full_name"],
+            "email": r["email"],
+            "lead_priority": r["lead_priority"],
+            "created_at": r["creation_timestamp"],
+        } for r in rows
+    ])
+
+
+@app.route("/admin/meetings", methods=["GET"])
+def admin_meetings():
+    token = request.headers.get("X-Admin-Token") or request.args.get("token")
+    if token != os.getenv("ADMIN_TOKEN"):
+        return jsonify({"error": "unauthorized"}), 401
+    number = request.args.get("number")
+    rows = database.list_meetings(whatsapp_number=number)
+    return jsonify([
+        {
+            "id": r["id"],
+            "whatsapp_number": r["whatsapp_number"],
+            "full_name": r["full_name"],
+            "event_id": r["google_calendar_event_id"],
+            "when": r["meeting_datetime"],
+            "status": r["status"],
+        } for r in rows
+    ])
 
 def create_app() -> Flask:
     load_dotenv()

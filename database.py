@@ -195,3 +195,42 @@ def get_future_meetings_by_number(whatsapp_number: str, start_from: datetime) ->
         return cur.fetchall()
 
 
+def list_clients(search: str | None = None, limit: int = 100) -> list[sqlite3.Row]:
+    with get_connection() as conn:
+        if search:
+            like = f"%{search}%"
+            cur = conn.execute(
+                "SELECT * FROM clientes WHERE whatsapp_number LIKE ? OR full_name LIKE ? OR email LIKE ? ORDER BY creation_timestamp DESC LIMIT ?",
+                (like, like, like, limit),
+            )
+        else:
+            cur = conn.execute(
+                "SELECT * FROM clientes ORDER BY creation_timestamp DESC LIMIT ?",
+                (limit,),
+            )
+        return cur.fetchall()
+
+
+def list_meetings(whatsapp_number: str | None = None, start_from: datetime | None = None,
+                  end_at: datetime | None = None, limit: int = 200) -> list[sqlite3.Row]:
+    with get_connection() as conn:
+        base = (
+            "SELECT r.*, c.full_name, c.whatsapp_number FROM reunioes r "
+            "JOIN clientes c ON r.client_id = c.id WHERE 1=1"
+        )
+        params: list[str] = []
+        if whatsapp_number:
+            base += " AND c.whatsapp_number = ?"
+            params.append(whatsapp_number)
+        if start_from:
+            base += " AND r.meeting_datetime >= ?"
+            params.append(_to_utc_iso(start_from))
+        if end_at:
+            base += " AND r.meeting_datetime <= ?"
+            params.append(_to_utc_iso(end_at))
+        base += " ORDER BY r.meeting_datetime DESC LIMIT ?"
+        params.append(str(limit))
+        cur = conn.execute(base, params)
+        return cur.fetchall()
+
+
