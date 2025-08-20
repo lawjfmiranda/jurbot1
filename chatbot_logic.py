@@ -89,7 +89,9 @@ class Chatbot:
         # Retornar respostas
         replies = result.get("replies", ["Desculpe, não consegui processar sua mensagem."])
         
-        # Log para debug
+        # Log para debug detalhado
+        self.logger.info(f"AI Orchestrator result: {result}")
+        self.logger.info(f"Extracted replies: {replies}")
         self.logger.info(
             f"Mensagem processada para {number}: estado={new_state.get('state')}, "
             f"respostas={len(replies)}"
