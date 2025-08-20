@@ -240,13 +240,14 @@ class Chatbot:
                 except Exception:
                     ai = {"intent": None}
                 if ai.get("intent") == "duvida_juridica" and ai.get("confidence", 0) >= 0.45:
-                    area = ai.get("area") or "Direito do Trabalho"
+                    area = ai.get("area") or ai_service.guess_area(message) or "Responsabilidade Civil"
                     reply = ai_service.legal_answer(area, message)
                     reply += "\n\nSe quiser, posso te ajudar a agendar uma consulta. Digite 2."
                     return [reply]
             # Se não classificou como jurídica, ainda assim ofereça ajuda informativa de forma genérica
             if re.search(r"[a-zA-Zá-úÁ-Ú]", message):
-                reply = ai_service.legal_answer("Direito do Trabalho", message)
+                area = ai_service.guess_area(message) or "Responsabilidade Civil"
+                reply = ai_service.legal_answer(area, message)
                 reply += "\n\nSe preferir ver opções, digite 'menu'."
                 return [reply]
             # Fallback final

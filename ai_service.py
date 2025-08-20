@@ -1,6 +1,8 @@
 import os
+import json
+import re
 import logging
-from typing import Optional
+from typing import Optional, List
 
 try:
     import google.generativeai as genai
@@ -13,6 +15,7 @@ logger = logging.getLogger(__name__)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
 GEMINI_MODEL_QUALITY = os.getenv("GEMINI_MODEL_QUALITY", "gemini-1.5-pro")
+FAQ_PATH = os.getenv("FAQ_PATH", os.path.join(os.path.dirname(__file__), "faq.json"))
 
 
 def _ensure_client():
@@ -54,9 +57,42 @@ ALLOWED_INTENTS = [
 ]
 
 ALLOWED_AREAS = [
-    "Direito de Família",
-    "Direito do Trabalho",
+    # Será sobrescrito por _load_allowed_areas() a partir do faq.json
+    "Responsabilidade Civil",
+    "Ação Penal",
+    "Medida Protetiva",
+    "Direito das Famílias",
+    "Recursos",
+    "FIES",
+    "Flagrantes",
+    "Inquérito policial",
 ]
+
+
+def _strip_accents(text: str) -> str:
+    import unicodedata
+    return ''.join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn')
+
+
+_CACHED_ALLOWED: List[str] | None = None
+
+
+def _load_allowed_areas() -> List[str]:
+    global _CACHED_ALLOWED
+    if _CACHED_ALLOWED is not None:
+        return _CACHED_ALLOWED
+    try:
+        if os.path.exists(FAQ_PATH):
+            with open(FAQ_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                areas = list((data.get("areas_atuacao") or {}).keys())
+                if areas:
+                    _CACHED_ALLOWED = areas
+                    return areas
+    except Exception:
+        pass
+    _CACHED_ALLOWED = ALLOWED_AREAS
+    return _CACHED_ALLOWED
 
 
 def extract_intent(user_text: str) -> dict:
@@ -96,8 +132,8 @@ def extract_intent(user_text: str) -> dict:
         "Você é um classificador de intenções para um chatbot jurídico em pt-BR. "
         "Responda APENAS com um JSON, sem texto extra, sem comentários, sem markdown.\n"
         "Formato: {\"intent\": <uma de %s>, \"area\": <opcional, uma de %s>, \"confidence\": <0..1>}\n"
-        "Se fora do escopo jurídico, use intent='desconhecido'.\n"
-        "Texto do usuário: \n" % (ALLOWED_INTENTS, ALLOWED_AREAS)
+        "Restrinja a área às opções listadas. Se não corresponder a nenhuma, deixe \"area\" vazia e use intent='desconhecido'.\n"
+        "Texto do usuário: \n" % (ALLOWED_INTENTS, _load_allowed_areas())
     ) + user_text
     try:
         resp = model.generate_content(prompt)
@@ -128,7 +164,32 @@ def extract_intent(user_text: str) -> dict:
 def area_in_allowed(area: Optional[str]) -> bool:
     if not area:
         return False
-    return area in ALLOWED_AREAS
+    return area in _load_allowed_areas()
+
+
+def guess_area(user_text: str) -> Optional[str]:
+    """Heurística para mapear texto a uma área permitida, com base nos nomes e sinônimos básicos."""
+    text = _strip_accents(user_text.lower())
+    for area in _load_allowed_areas():
+        a = _strip_accents(area.lower())
+        if a in text:
+            return area
+    # sinônimos
+    synonyms = [
+        ("Direito das Famílias", ["familia", "guarda", "pensao", "pensão", "divorcio", "divórcio"]),
+        ("Ação Penal", ["crime", "criminal", "pena", "processo penal"]),
+        ("Flagrantes", ["flagrante", "preso", "prisao", "prisão", "delegacia", "cadeia", "custodia", "custódia"]),
+        ("Medida Protetiva", ["protetiva", "agressor", "violencia domestica", "violência doméstica"]),
+        ("Responsabilidade Civil", ["indenizacao", "indenização", "dano moral", "acidente", "prejuizo", "prejuízo"]),
+        ("Recursos", ["recurso", "apelar", "apelação", "agravo"]),
+        ("FIES", ["fies", "financiamento estudantil"]),
+        ("Inquérito policial", ["inquerito", "inquérito", "investigacao", "investigação"]),
+    ]
+    for area, keys in synonyms:
+        for k in keys:
+            if k in text:
+                return area
+    return None
 
 
 def small_talk_reply(base_text: str, user_text: Optional[str] = None, max_chars: int = 280) -> str:
@@ -166,15 +227,21 @@ def legal_answer(area: str, question: str, max_chars: int = 700) -> str:
             "Isto é informativo e não substitui orientação de um advogado. "
             "Podemos conversar mais na consulta para analisar seu caso."
         )
+    allowed = _load_allowed_areas()
     if not area_in_allowed(area):
-        area = "Direito do Trabalho"
+        # tenta deduzir
+        g = guess_area(question)
+        area = g if g else allowed[0]
+    areas_text = ", ".join(allowed)
     sys_prompt = (
-        "Você é a JustIA, assistente de um escritório de advocacia brasileiro. Responda em pt-BR. "
-        "Atue apenas em %s. Traga visão geral, passos iniciais e direitos de forma clara. "
-        "Não prometa resultados; não peça documentos; não cite artigos específicos. "
-        "Sempre inicie com: 'Isto é informativo e não substitui orientação de um advogado.' "
-        f"Limite a {max_chars} caracteres.\nPergunta: "
-    ) % area
+        "Você é a JustIA da JM ADVOGADOS. Responda em pt-BR, de forma clara e empática. "
+        f"Atue apenas nas áreas: {areas_text}. Se a pergunta não estiver dentro dessas áreas, responda brevemente que está fora do nosso escopo e ofereça ajuda nas áreas listadas. "
+        "Traga visão geral, passos iniciais e cuidados. Não prometa resultados; não solicite documentos; evite citar artigos/leis. "
+        "Comece sempre com: 'Isto é informativo e não substitui orientação de um advogado.' "
+        f"Limite a {max_chars} caracteres.\n"
+        f"Área foco: {area}.\n"
+        "Pergunta: "
+    )
     try:
         resp = model.generate_content(sys_prompt + question)
         text = (resp.text or "").strip()
