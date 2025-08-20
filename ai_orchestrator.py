@@ -127,17 +127,21 @@ REGRAS DE CLASSIFICAÇÃO:
 - Use "list_meetings" APENAS se cliente quer VER/CONSULTAR/VERIFICAR seus agendamentos existentes
 - Use "info" APENAS para informações do escritório (endereço, telefone, horário de funcionamento)
 - Use "small_talk" para: perguntas sobre VALORES/PREÇOS/CUSTOS, despedidas, confirmações, agradecimentos
-- Use "legal" para dúvidas jurídicas específicas
-- **Use "qualify" para casos detalhados que precisam de qualificação (ex: problemas específicos, situações complexas)**
+- Use "legal" APENAS para dúvidas teóricas/gerais sobre direito
+- **Use "qualify" para casos REAIS e ESPECÍFICOS que a pessoa está vivendo**
 - NUNCA interrompa um processo de agendamento em andamento
 - Para respostas como "ok", "perfeito", "obrigado", "tchau" → use "small_talk"
 
-QUANDO USAR "qualify":
-- Cliente descreve um problema específico e detalhado
-- Menciona valores, prazos, situações urgentes
-- Casos de violência, acidentes, separação, problemas trabalhistas
-- Qualquer situação que precise de análise de viabilidade
-- Mensagens longas com contexto factual
+DIFERENÇA CRÍTICA ENTRE "legal" e "qualify":
+- "legal" = dúvida teórica ("Como funciona divórcio?", "O que é pensão?")
+- "qualify" = caso REAL ("Quero me divorciar", "Sofri acidente", "Estou sendo ameaçada")
+
+SEMPRE use "qualify" quando:
+- Cliente conta um problema que ACONTECEU com ele
+- Descreve situação ATUAL que está vivendo
+- Quer RESOLVER um problema específico
+- Menciona valores, datas, nomes, detalhes factuais
+- Fala em primeira pessoa sobre seu caso
 
 EXEMPLOS DE CLASSIFICAÇÃO:
   * "quando é minha consulta?" → list_meetings
@@ -147,6 +151,16 @@ EXEMPLOS DE CLASSIFICAÇÃO:
   * "quanto custa a consulta?" → small_talk
   * "qual o valor?" → small_talk
   * "quero saber o preço" → small_talk
+
+EXEMPLOS CRÍTICOS "legal" vs "qualify":
+  * "Como funciona um divórcio?" → legal (dúvida teórica)
+  * "Quero me divorciar do meu marido" → qualify (caso real)
+  * "O que é pensão alimentícia?" → legal (dúvida teórica) 
+  * "Meu ex não paga pensão" → qualify (caso real)
+  * "Posso processar por acidente?" → legal (dúvida teórica)
+  * "Sofri um acidente semana passada" → qualify (caso real)
+  * "Como funciona medida protetiva?" → legal (dúvida teórica)
+  * "Meu ex está me ameaçando" → qualify (caso real)
 
 TOM PROFISSIONAL:
 - Use "Senhor/Senhora" quando apropriado
@@ -163,19 +177,43 @@ Responda APENAS com JSON:
         
         try:
             result = ai_service._call_gemini_api(prompt)
+            self.logger.info(f"AI Raw Response for '{message[:50]}...': {result[:200]}...")
+            
             # Extrair JSON
             match = re.search(r'\{.*"intent".*\}', result, re.DOTALL)
             if match:
-                return json.loads(match.group())
+                decision = json.loads(match.group())
+                self.logger.info(f"AI Parsed Decision: {decision}")
+                return decision
         except Exception as e:
             self.logger.error(f"Erro IA: {e}")
         
         # Fallback
-        return self._fallback_intent(message)
+        fallback_decision = self._fallback_intent(message)
+        self.logger.info(f"Using Fallback Decision: {fallback_decision} for message: '{message[:50]}...'")
+        return fallback_decision
     
     def _fallback_intent(self, message: str) -> Dict[str, Any]:
         """Detecta intenção básica se IA falhar."""
         msg = message.lower()
+        
+        # PRIORIDADE: Casos específicos que precisam qualificação
+        qualify_indicators = [
+            # Primeira pessoa - problemas reais
+            "sofri", "tive", "estou", "fui", "me aconteceu", "aconteceu comigo",
+            "meu ex", "minha ex", "meu marido", "minha esposa", "meu caso",
+            "preciso resolver", "quero processar", "quero me divorciar",
+            "estou sendo", "me ameaçou", "não paga", "não pagou",
+            # Contextos específicos com detalhes
+            "acidente", "bateu", "bateram", "colisão", "seguro",
+            "violência", "agressão", "ameaça", "proteção", "delegacia",
+            "separação", "divórcio", "guarda", "pensão", "casa", "bens",
+            "preso", "prisão", "processo", "audiência", "condenação"
+        ]
+        
+        # Verificar se contém indicadores de qualificação
+        if any(indicator in msg for indicator in qualify_indicators):
+            return {"intent": "qualify", "action": "start_qualify", "response": ""}
         
         # Palavras de agendamento
         if any(w in msg for w in ["agendar", "marcar", "consulta", "gostaria de agendar"]):
@@ -189,9 +227,14 @@ Responda APENAS com JSON:
         if any(w in msg for w in ["olá", "oi", "bom dia", "boa tarde", "boa noite"]) and len(msg) < 20:
             return {"intent": "greeting", "action": "greet", "response": ""}
         
-        # Dúvidas jurídicas (mensagens mais longas com contexto jurídico)
-        if len(message) > 30 and any(w in msg for w in ["dúvida", "duvida", "problema", "caso", "processo", "ajuda"]):
+        # Dúvidas jurídicas teóricas (apenas perguntas genéricas)
+        theoretical_questions = ["como funciona", "o que é", "como é", "qual é", "pode explicar"]
+        if any(q in msg for q in theoretical_questions):
             return {"intent": "legal", "action": "legal_answer", "response": ""}
+        
+        # Mensagens longas provavelmente são casos para qualificar
+        if len(message) > 50:
+            return {"intent": "qualify", "action": "start_qualify", "response": ""}
         
         # Default: small talk
         return {"intent": "small_talk", "action": "chat", "response": "Como posso ajudar?"}
