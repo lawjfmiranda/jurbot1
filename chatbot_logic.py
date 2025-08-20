@@ -244,7 +244,12 @@ class Chatbot:
                     reply = ai_service.legal_answer(area, message)
                     reply += "\n\nSe quiser, posso te ajudar a agendar uma consulta. Digite 2."
                     return [reply]
-            # Se nada foi entendido, sugerir menu
+            # Se não classificou como jurídica, ainda assim ofereça ajuda informativa de forma genérica
+            if re.search(r"[a-zA-Zá-úÁ-Ú]", message):
+                reply = ai_service.legal_answer("Direito do Trabalho", message)
+                reply += "\n\nSe preferir ver opções, digite 'menu'."
+                return [reply]
+            # Fallback final
             return [ai_service.small_talk_reply("Posso te ajudar com alguma dúvida agora. Se preferir ver opções, digite 'menu'.")]
 
         if current == "MENU":
