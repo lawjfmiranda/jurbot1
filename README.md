@@ -11,6 +11,7 @@ Projeto Flask com integrações ao WhatsApp (Evolution API), Google Calendar e S
 - `notification_service.py`: notificação interna (webhook ou SMTP).
 - `scheduler.py`: lembretes e follow-ups.
 - `faq.json`: conteúdo editável de FAQs.
+ - `ai_service.py`: integração com IA (Gemini) para intenção e respostas informativas.
 
 ## Variáveis de Ambiente
 Crie um arquivo `.env` na raiz do projeto com:
@@ -40,6 +41,11 @@ SMTP_USER=your_user
 SMTP_PASS=your_pass
 EMAIL_FROM=bot@yourdomain.com
 EMAIL_TO=suporte@yourdomain.com
+
+# IA (Gemini)
+GEMINI_API_KEY=your_gemini_api_key
+GEMINI_MODEL=gemini-1.5-flash
+GEMINI_MODEL_QUALITY=gemini-1.5-pro
 ```
 
 ## Instalação
@@ -71,3 +77,4 @@ curl --request POST \
 - Datas são persistidas em UTC no banco.
 - Slots de agenda consideram dias úteis (9h–18h) e verificam free/busy.
 - Lembretes são enviados 24h antes; follow-up é enviado diariamente às 09:00.
+- Se `GEMINI_API_KEY` não estiver definido, o chatbot usa heurísticas simples; com a chave, ativa respostas de IA com limite de extensão e disclaimers.

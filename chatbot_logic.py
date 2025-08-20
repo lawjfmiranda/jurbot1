@@ -12,6 +12,7 @@ except Exception:
 import database
 import calendar_service
 import notification_service
+import ai_service
 
 
 FAQ_PATH = os.getenv("FAQ_PATH", os.path.join(os.path.dirname(__file__), "faq.json"))
@@ -188,6 +189,17 @@ class Chatbot:
                 )
                 conversation_state.set(number, "data", {**data, "slots": [(s.isoformat(), e.isoformat()) for s, e in fresh[:3]]})
                 return ["Encontrei opções mais próximas:", present_slots(fresh)]
+            # Tentar classificar pergunta jurídica e responder com IA
+            if len(message) >= 15:
+                try:
+                    ai = ai_service.extract_intent(message)
+                except Exception:
+                    ai = {"intent": None}
+                if ai.get("intent") == "duvida_juridica" and ai.get("confidence", 0) >= 0.6:
+                    area = ai.get("area") or "Direito do Trabalho"
+                    reply = ai_service.legal_answer(area, message)
+                    reply += "\n\nSe quiser, posso te ajudar a agendar uma consulta. Digite 2."
+                    return [reply]
             if intent in ("GREET", "UNKNOWN"):
                 conversation_state.set(number, "state", "MENU")
                 return [build_menu()]
@@ -237,6 +249,17 @@ class Chatbot:
                         when = dt_utc.astimezone(tz).strftime("%d/%m/%Y %H:%M") if tz else dt_utc.strftime("%d/%m/%Y %H:%M")
                         items.append(f"{idx}️⃣  {when}")
                     return ["Seus próximos agendamentos:\n" + "\n".join(items) + "\n\nPara cancelar, digite 'cancelar'."]
+            # Se o usuário escreveu um texto livre, tentar IA para dúvida jurídica
+            if len(message) >= 15:
+                try:
+                    ai = ai_service.extract_intent(message)
+                except Exception:
+                    ai = {"intent": None}
+                if ai.get("intent") == "duvida_juridica" and ai.get("confidence", 0) >= 0.6:
+                    area = ai.get("area") or "Direito do Trabalho"
+                    reply = ai_service.legal_answer(area, message)
+                    reply += "\n\nCaso queira, digite 2 para agendar uma consulta sobre isso."
+                    return [reply]
             # Fallback to menu
             return [build_menu()]
 
@@ -255,7 +278,7 @@ class Chatbot:
             days = calendar_service.get_next_business_days(count=5)
             data["dates"] = [d.strftime('%Y-%m-%d') for d in days]
             conversation_state.set(number, "data", data)
-            lines = ["Escolha a data desejada:"]
+            lines = [ai_service.small_talk_reply("Escolha a data desejada:")]
             for idx, d in enumerate(days, start=1):
                 lines.append(f"{idx}️⃣  {_weekday_pt_br(d)}, {d.strftime('%d/%m/%Y')}")
             lines.append("\nResponda com 1 a 5. Digite 'voltar' para o menu.")
@@ -296,7 +319,7 @@ class Chatbot:
                 slots = []
             conversation_state.set(number, "state", "SCHEDULING_SHOW_SLOTS")
             conversation_state.set(number, "data", {**data, "slots": [(s.isoformat(), e.isoformat()) for s, e in slots[:3]]})
-            return [present_slots(slots), "Digite 'mais' para ver outras datas, ou 'voltar' para o menu."]
+            return [ai_service.small_talk_reply(present_slots(slots)), "Digite 'mais' para ver outras datas, ou 'voltar' para o menu."]
 
         if current in ("LEAD_Q_START", "ASK_NAME"):
             # Store full name
@@ -362,7 +385,7 @@ class Chatbot:
                 f"Obrigado, {nome}. Suas informaÃ§Ãµes foram recebidas e nossa equipe jÃ¡ foi notificada. "
                 "Para agilizar seu atendimento, vamos marcar uma consulta inicial?"
             )
-            return [thank_you, present_slots(slots)]
+            return [ai_service.small_talk_reply(thank_you), present_slots(slots)]
 
         if current == "SCHEDULING_SHOW_SLOTS":
             # Expect choice 1-3
@@ -380,7 +403,7 @@ class Chatbot:
                 except Exception:
                     fresh = []
                 conversation_state.set(number, "data", {**data, "slots": [(s.isoformat(), e.isoformat()) for s, e in fresh[:3]]})
-                return [present_slots(fresh), "Digite 'mais' para ver outras datas, ou 'voltar' para o menu."]
+                return [ai_service.small_talk_reply(present_slots(fresh)), "Digite 'mais' para ver outras datas, ou 'voltar' para o menu."]
 
             choice_match = re.search(r"\b([1-3])\b", message)
             slots = data.get("slots", [])
@@ -394,7 +417,7 @@ class Chatbot:
                     fresh = []
                 if fresh:
                     conversation_state.set(number, "data", {**data, "slots": [(s.isoformat(), e.isoformat()) for s, e in fresh[:3]]})
-                    return [present_slots(fresh), "Digite 'mais' para ver outras datas, ou 'voltar' para o menu."]
+                    return [ai_service.small_talk_reply(present_slots(fresh)), "Digite 'mais' para ver outras datas, ou 'voltar' para o menu."]
                 return ["No momento não há horários disponíveis para agendamento. Posso verificar novamente mais tarde ou coletar sua preferência de horários."]
             if choice_match and slots:
                 idx = int(choice_match.group(1)) - 1
@@ -455,7 +478,7 @@ class Chatbot:
                     f"Data e hora: {local_start.strftime('%d/%m/%Y %H:%M')}\n"
                     "Você receberá um lembrete 24 horas antes. Se precisar ajustar, é só me avisar."
                 )
-                return [confirm]
+                return [ai_service.small_talk_reply(confirm)]
             else:
                 return ["NÃ£o entendi sua escolha. Responda com 1, 2 ou 3 para selecionar um horÃ¡rio."]
 
