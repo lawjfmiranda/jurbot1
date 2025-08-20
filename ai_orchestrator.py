@@ -99,7 +99,7 @@ class AIConversationManager:
     def _ai_decide(self, message: str, context: str) -> Dict[str, Any]:
         """IA decide ação baseada em mensagem e contexto."""
         
-        prompt = f"""Você é JustIA, assistente do JM ADVOGADOS. Analise o contexto e decida a ação apropriada.
+        prompt = f"""Você é JustIA, assistente PROFISSIONAL do JM ADVOGADOS. Use linguagem formal e respeitosa.
 
 CONTEXTO ATUAL:
 {context}
@@ -107,27 +107,37 @@ CONTEXTO ATUAL:
 MENSAGEM DO CLIENTE:
 {message}
 
-REGRAS IMPORTANTES:
+REGRAS DE CLASSIFICAÇÃO:
 - Use "greeting" APENAS se for a PRIMEIRA mensagem do cliente (saudação inicial)
 - Se ESTADO ATUAL = SCHED_NAME/SCHED_PERIOD/SCHED_DATE/SCHED_SLOT/SCHED_TIME: continue o fluxo de agendamento
 - Use "schedule" APENAS se cliente quer INICIAR novo agendamento E estado = FREE
 - Use "cancel" se cliente quer cancelar/desmarcar
 - Use "list_meetings" se cliente quer VER/CONSULTAR/VERIFICAR seus agendamentos existentes
-- Use "info" APENAS para informações do escritório (endereço, telefone, horário)
-- Use "legal" para dúvidas jurídicas
-- Use "small_talk" para conversas casuais
+- Use "info" APENAS para informações do escritório (endereço, telefone, horário de funcionamento)
+- Use "small_talk" para perguntas sobre VALORES/PREÇOS/CUSTOS da consulta
+- Use "legal" para dúvidas jurídicas específicas
 - NUNCA interrompa um processo de agendamento em andamento
-- EXEMPLOS:
+
+EXEMPLOS DE CLASSIFICAÇÃO:
   * "quando é minha consulta?" → list_meetings
   * "qual meu agendamento?" → list_meetings  
   * "onde fica o escritório?" → info
   * "qual o telefone?" → info
+  * "quanto custa a consulta?" → small_talk
+  * "qual o valor?" → small_talk
+  * "quero saber o preço" → small_talk
+
+TOM PROFISSIONAL:
+- Use "Senhor/Senhora" quando apropriado
+- Evite gírias e linguagem informal
+- Seja cordial mas profissional
+- Mantenha formalidade adequada a um escritório de advocacia
 
 Responda APENAS com JSON:
 {{
   "intent": "greeting|schedule|cancel|legal|info|areas|list_meetings|small_talk",
   "action": "acao_especifica",
-  "response": "resposta natural"
+  "response": "resposta natural e profissional"
 }}"""
         
         try:
@@ -567,13 +577,25 @@ Responda APENAS com JSON:
                     client: Optional[Dict], decision: Dict) -> Dict[str, Any]:
         """Conversa geral via IA."""
         
-        response = decision.get("response")
-        if not response:
-            response = ai_service.small_talk_reply(
-                "Posso ajudar com dúvidas jurídicas ou agendar consultas.",
-                user_text=message,
-                max_chars=300
-            )
+        # Detectar perguntas sobre valores
+        msg_lower = message.lower()
+        value_keywords = ["valor", "preço", "custo", "quanto", "custa", "cobr", "pag"]
+        
+        if any(keyword in msg_lower for keyword in value_keywords):
+            response = ("Os valores das consultas podem variar conforme a complexidade do caso. "
+                       "Para informações precisas sobre honorários, recomendo que confirme "
+                       "diretamente com nosso setor financeiro durante o agendamento ou "
+                       "entre em contato pelo telefone do escritório.")
+        else:
+            response = decision.get("response")
+            if not response:
+                # Usar contexto mais profissional
+                context = "Sou assistente do JM ADVOGADOS. Posso ajudar com informações jurídicas ou agendar consultas."
+                response = ai_service.small_talk_reply(
+                    context,
+                    user_text=message,
+                    max_chars=300
+                )
         
         return {"replies": [response], "new_state": {"state": "FREE", "data": {}}}
     
