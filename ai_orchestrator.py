@@ -231,7 +231,11 @@ Responda APENAS com JSON:
         # Fluxo de agendamento natural
         if current == "FREE":
             # Iniciar agendamento
-            self.logger.info(f"Schedule start: client={client}, has_name={bool(client and client.get('full_name') if client else False)}")
+            try:
+                has_name = bool(client and client["full_name"] if client else False)
+            except (KeyError, TypeError):
+                has_name = False
+            self.logger.info(f"Schedule start: client={client}, has_name={has_name}")
             
             try:
                 if client and client["full_name"] and client["full_name"].strip():
@@ -368,7 +372,10 @@ Responda APENAS com JSON:
                     )
                     
                     # Salvar no banco
-                    client_id = client["id"] if client else database.upsert_client(user_number, full_name=name)
+                    try:
+                        client_id = client["id"] if client else database.upsert_client(user_number, full_name=name)
+                    except (KeyError, TypeError):
+                        client_id = database.upsert_client(user_number, full_name=name)
                     database.add_meeting(client_id, event_id, start, "MARCADA")
                     
                     tz = ZoneInfo(os.getenv("TIMEZONE", "America/Sao_Paulo")) if ZoneInfo else None
