@@ -2,6 +2,7 @@
 import json
 import logging
 import uuid
+import contextvars
 from typing import Any, Dict, List, Optional
 
 from flask import Flask, jsonify, request
@@ -29,7 +30,10 @@ logging.basicConfig(
 class RequestIdFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         if not hasattr(record, "req_id"):
-            record.req_id = "-"
+            try:
+                record.req_id = _request_id_var.get()
+            except Exception:
+                record.req_id = "-"
         return True
 
 
@@ -56,6 +60,9 @@ _req_filter = RequestIdFilter()
 logging.getLogger().addFilter(_req_filter)
 app.logger.addFilter(_req_filter)
 _install_req_id_formatter()
+
+# Context var para req_id
+_request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("req_id", default="-")
 
 # Rate limit simples em memória por número
 _last_seen: dict[str, float] = {}
@@ -171,7 +178,8 @@ def debug_echo():
 def evolution_webhook():
     # correlation id por requisição
     req_id = request.headers.get("X-Req-Id") or str(uuid.uuid4())
-    # usar extra={"req_id": req_id} nas mensagens abaixo
+    # seta no contexto para ser capturado pelo filtro/formatter
+    _token = _request_id_var.set(req_id)
     token = request.headers.get("X-Webhook-Token") or request.args.get("token")
     if token and "/" in token:
         token = token.split("/", 1)[0]
@@ -187,7 +195,6 @@ def evolution_webhook():
             body = {}
     app.logger.info(
         f"Webhook received type={type(body)} keys={list(body.keys()) if isinstance(body, dict) else 'n/a'}",
-        extra={"req_id": req_id},
     )
     messages: List[Dict[str, Any]] = []
 
@@ -200,7 +207,7 @@ def evolution_webhook():
     else:
         messages = [body]
 
-    app.logger.info(f"Webhook messages_count={len(messages)}", extra={"req_id": req_id})
+    app.logger.info(f"Webhook messages_count={len(messages)}")
     for idx, msg in enumerate(messages):
         # Ignore messages sent by our own instance (status updates, echoes)
         own = msg.get("fromMe") or msg.get("from_me")
@@ -219,7 +226,6 @@ def evolution_webhook():
                 short = str(msg)[:300]
             app.logger.info(
                 f"Skipped msg idx={idx} number={number} text_len={(len(text) if text else 0)} payload={short}",
-                extra={"req_id": req_id},
             )
             continue
 
@@ -234,7 +240,6 @@ def evolution_webhook():
 
         app.logger.info(
             f"Incoming idx={idx} number={number} text='{text[:120]}'",
-            extra={"req_id": req_id},
         )
         try:
             responses = chatbot.handle_incoming_message(number, text)
@@ -251,12 +256,18 @@ def evolution_webhook():
                 whatsapp_service.send_whatsapp_message(number, r)
                 app.logger.info(
                     f"Sent reply to {number}: '{r[:120]}'",
-                    extra={"req_id": req_id},
                 )
             except Exception:
                 app.logger.exception(f"Failed to send WhatsApp message to {number}")
 
-    return jsonify({"status": "received"})
+    try:
+        return jsonify({"status": "received"})
+    finally:
+        # limpa req_id do contexto
+        try:
+            _request_id_var.reset(_token)
+        except Exception:
+            _request_id_var.set("-")
 
 
 @app.route("/admin/clients", methods=["GET"])
