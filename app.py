@@ -242,6 +242,8 @@ def evolution_webhook():
 
     app.logger.info(f"Webhook messages_count={len(messages)}")
     for idx, msg in enumerate(messages):
+        # Log EVERY message attempt with full details
+        app.logger.info(f"Raw message {idx}: {json.dumps(msg, indent=2)[:500]}...")
         # Ignore messages sent by our own instance (status updates, echoes)
         own = msg.get("fromMe") or msg.get("from_me")
         if own is None and isinstance(msg.get("data"), dict):
