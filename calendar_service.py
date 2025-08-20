@@ -86,7 +86,8 @@ def _generate_candidate_slots(day: datetime, duration_minutes: int = 60) -> List
     slots: List[Tuple[datetime, datetime]] = []
     cursor = start
     delta = timedelta(minutes=duration_minutes)
-    step = timedelta(minutes=30)
+    # step igual à duração => apenas 1 consulta por hora quando duration_minutes=60
+    step = timedelta(minutes=duration_minutes)
     while cursor + delta <= end:
         slots.append((cursor, cursor + delta))
         cursor += step
@@ -106,7 +107,7 @@ def _filter_free_slots(candidates: List[Tuple[datetime, datetime]], busy: List[T
     return free
 
 
-def get_next_available_slots(count: int = 3, duration_minutes: int = 60) -> List[Tuple[datetime, datetime]]:
+def get_next_available_slots(count: int = 3, duration_minutes: int = 60, preferred_period: Optional[str] = None) -> List[Tuple[datetime, datetime]]:
     service = _get_service()
     tz = _tz()
     now = datetime.now(tz) if tz else datetime.now()
@@ -121,6 +122,12 @@ def get_next_available_slots(count: int = 3, duration_minutes: int = 60) -> List
         bh_start, bh_end = _business_hours_for_day(day)
         busy = _list_busy_intervals(service, bh_start, bh_end)
         candidates = _generate_candidate_slots(day, duration_minutes)
+        # filtra por período preferido
+        if preferred_period:
+            if preferred_period.lower().startswith("man"):
+                candidates = [(s, e) for (s, e) in candidates if 9 <= s.hour < 12]
+            elif preferred_period.lower().startswith("tar"):
+                candidates = [(s, e) for (s, e) in candidates if 13 <= s.hour < 18]
         free_slots = _filter_free_slots(candidates, busy)
         for slot in free_slots:
             if len(found) < count:

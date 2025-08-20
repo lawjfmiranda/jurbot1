@@ -159,16 +159,32 @@ class Chatbot:
                 if selected == "1":
                     return [format_areas_atuacao()]
                 if selected == "2":
-                    # Start scheduling flow
-                    conversation_state.set(number, "state", "SCHEDULING_SHOW_SLOTS")
-                    slots = calendar_service.get_next_available_slots()
-                    # Persist slots in state for selection
-                    conversation_state.set(number, "data", {"slots": [(s.isoformat(), e.isoformat()) for s, e in slots[:3]]})
-                    return [present_slots(slots)]
+                    conversation_state.set(number, "state", "SCHEDULING_PREF_PERIOD")
+                    return ["Perfeito! Para agilizar, você prefere ser atendido de manhã ou à tarde? (responda: manhã, tarde ou indiferente)"]
                 if selected == "3":
                     return [format_informacoes_gerais()]
             # Fallback to menu
             return [build_menu()]
+
+        if current == "SCHEDULING_PREF_PERIOD":
+            pref = message.strip().lower()
+            if "manh" in pref:
+                pref_val = "manha"
+            elif "tard" in pref:
+                pref_val = "tarde"
+            else:
+                pref_val = "indiferente"
+            data["pref_period"] = pref_val
+            conversation_state.set(number, "data", data)
+            conversation_state.set(number, "state", "SCHEDULING_SHOW_SLOTS")
+            try:
+                slots = calendar_service.get_next_available_slots(
+                    preferred_period=("manhã" if pref_val=="manha" else ("tarde" if pref_val=="tarde" else None))
+                )
+            except Exception:
+                slots = []
+            conversation_state.set(number, "data", {**data, "slots": [(s.isoformat(), e.isoformat()) for s, e in slots[:3]]})
+            return [present_slots(slots)]
 
         if current in ("LEAD_Q_START", "ASK_NAME"):
             # Store full name
@@ -238,21 +254,23 @@ class Chatbot:
 
         if current == "SCHEDULING_SHOW_SLOTS":
             # Expect choice 1-3
-            choice_match = re.fullmatch(r"[1-3]", message)
+            choice_match = re.search(r"\b([1-3])\b", message)
             data = state.get("data", {})
             slots = data.get("slots", [])
             if not slots:
                 # Try fetch again if empty
                 try:
-                    fresh = calendar_service.get_next_available_slots()
+                    fresh = calendar_service.get_next_available_slots(
+                        preferred_period=(data.get("pref_period") if data.get("pref_period") != "indiferente" else None)
+                    )
                 except Exception:
                     fresh = []
                 if fresh:
                     conversation_state.set(number, "data", {**data, "slots": [(s.isoformat(), e.isoformat()) for s, e in fresh[:3]]})
                     return [present_slots(fresh)]
-                return ["No momento nÃ£o hÃ¡ horÃ¡rios disponÃ­veis para agendamento. Posso verificar novamente mais tarde ou coletar sua preferÃªncia de horÃ¡rios."]
+                return ["No momento não há horários disponíveis para agendamento. Posso verificar novamente mais tarde ou coletar sua preferência de horários."]
             if choice_match and slots:
-                idx = int(message) - 1
+                idx = int(choice_match.group(1)) - 1
                 try:
                     start_iso, end_iso = slots[idx]
                 except IndexError:
