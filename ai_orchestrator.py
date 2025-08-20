@@ -54,10 +54,13 @@ class AIConversationManager:
         
         # Info do cliente
         if client:
-            if client.get("full_name"):
-                parts.append(f"Cliente: {client['full_name']}")
-            if client.get("email"):
-                parts.append(f"Email: {client['email']}")
+            try:
+                if client["full_name"]:
+                    parts.append(f"Cliente: {client['full_name']}")
+                if client["email"]:
+                    parts.append(f"Email: {client['email']}")
+            except (KeyError, TypeError):
+                pass
         
         # Agendamentos existentes
         try:
@@ -169,10 +172,13 @@ IMPORTANTE:
             FAQ = {}
         base = FAQ.get("boas_vindas", "Olá! Sou JustIA do JM ADVOGADOS.")
         
-        if client and client.get("full_name"):
-            name = client["full_name"].split()[0]
-            greeting = base.replace("Olá!", f"Olá, {name}!")
-        else:
+        try:
+            if client and client["full_name"]:
+                name = client["full_name"].split()[0]
+                greeting = base.replace("Olá!", f"Olá, {name}!")
+            else:
+                greeting = base
+        except (KeyError, TypeError):
             greeting = base
         
         greeting += "\n\nComo posso ajudar? Posso tirar dúvidas jurídicas, agendar consultas ou fornecer informações."
@@ -204,15 +210,18 @@ IMPORTANTE:
         # Fluxo de agendamento natural
         if current == "FREE":
             # Iniciar agendamento
-            if client and client.get("full_name"):
-                data["full_name"] = client["full_name"]
-                return {
-                    "replies": [
-                        f"Ótimo, {client['full_name'].split()[0]}!",
-                        "Você prefere manhã ou tarde? Ou qualquer horário serve?"
-                    ],
-                    "new_state": {"state": "SCHED_PERIOD", "data": data}
-                }
+            try:
+                if client and client["full_name"]:
+                    data["full_name"] = client["full_name"]
+                    return {
+                        "replies": [
+                            f"Ótimo, {client['full_name'].split()[0]}!",
+                            "Você prefere manhã ou tarde? Ou qualquer horário serve?"
+                        ],
+                        "new_state": {"state": "SCHED_PERIOD", "data": data}
+                    }
+            except (KeyError, TypeError):
+                pass
             else:
                 return {
                     "replies": ["Vamos agendar! Primeiro, qual seu nome completo?"],
@@ -311,7 +320,7 @@ IMPORTANTE:
                 end = datetime.fromisoformat(end_iso)
                 
                 # Criar evento
-                name = data.get("full_name", user_number)
+                name = data.get("full_name") or user_number
                 title = f"Consulta - {name}"
                 
                 try:
