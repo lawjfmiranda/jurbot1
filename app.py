@@ -25,6 +25,18 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s - %(message)s | %(req_id)s",
 )
 
+
+class RequestIdFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        if not hasattr(record, "req_id"):
+            record.req_id = "-"
+        return True
+
+
+_req_filter = RequestIdFilter()
+logging.getLogger().addFilter(_req_filter)
+app.logger.addFilter(_req_filter)
+
 # Rate limit simples em memória por número
 _last_seen: dict[str, float] = {}
 _MIN_INTERVAL_SECONDS = float(os.getenv("MIN_MSG_INTERVAL", "0.5"))
