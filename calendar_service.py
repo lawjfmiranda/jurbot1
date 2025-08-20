@@ -198,3 +198,12 @@ def get_available_slots_for_date(target_date: datetime, duration_minutes: int = 
     return _filter_free_slots(candidates, busy)
 
 
+def delete_event(event_id: str) -> None:
+    service = _get_service()
+    try:
+        service.events().delete(calendarId=CALENDAR_ID, eventId=event_id, sendUpdates="all").execute()
+    except Exception:
+        # Se não existir mais, seguimos sem erro
+        pass
+
+

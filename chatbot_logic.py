@@ -86,6 +86,8 @@ def detect_intent(message: str) -> str:
         return "LEAD"
     if contains_any(message, GREET_KEYWORDS):
         return "GREET"
+    if contains_any(message, ["cancelar", "cancelamento", "desmarcar", "remarcar"]):
+        return "CANCEL"
     # aceita variações: "1", "1.", "opção 1", etc
     m = re.search(r"\b([1-3])\b", message.strip())
     if m:
@@ -162,12 +164,18 @@ class Chatbot:
                     "Entendi. Para que eu possa te ajudar da melhor forma e direcionar ao advogado especialista, preciso fazer algumas perguntas rÃ¡pidas, tudo bem?",
                     "Qual Ã© o seu nome completo?",
                 ]
+            if intent == "CANCEL":
+                conversation_state.set(number, "state", "CANCEL_LOOKUP")
+                return ["Certo, vamos cancelar sua consulta. Informe a data (dd/mm/aaaa) ou digite 'todas' para listar as próximas do seu número."]
             if intent in ("GREET", "UNKNOWN"):
                 conversation_state.set(number, "state", "MENU")
                 return [build_menu()]
 
         if current == "MENU":
             intent = detect_intent(message)
+            if intent == "CANCEL":
+                conversation_state.set(number, "state", "CANCEL_LOOKUP")
+                return ["Certo, vamos cancelar sua consulta. Informe a data (dd/mm/aaaa) ou digite 'todas' para listar."]
             if intent == "MENU_CHOICE":
                 selected = re.search(r"\b([1-3])\b", message).group(1)
                 if selected == "1":
@@ -366,6 +374,52 @@ class Chatbot:
                 return [confirm]
             else:
                 return ["NÃ£o entendi sua escolha. Responda com 1, 2 ou 3 para selecionar um horÃ¡rio."]
+
+        # Cancelamento: localizar e cancelar
+        if current == "CANCEL_LOOKUP":
+            query = message.strip().lower()
+            rows = []
+            if query == "todas":
+                rows = database.get_future_meetings(datetime.now())
+            else:
+                try:
+                    dt = datetime.strptime(query, "%d/%m/%Y")
+                    start = dt.replace(hour=0, minute=0, second=0, microsecond=0)
+                    end = dt.replace(hour=23, minute=59, second=59, microsecond=0)
+                    rows = database.get_meetings_between(start, end)
+                except Exception:
+                    return ["Formato de data inválido. Envie como dd/mm/aaaa ou 'todas'."]
+            rows = [r for r in rows if r["whatsapp_number"] == number]
+            if not rows:
+                return ["Não encontrei consultas futuras para este número."]
+            items = []
+            for idx, r in enumerate(rows[:5], start=1):
+                when = datetime.fromisoformat(str(r["meeting_datetime"]).replace("Z", "+00:00")).strftime("%d/%m/%Y %H:%M")
+                items.append(f"{idx}️⃣  {when}")
+            conversation_state.set(number, "state", "CANCEL_CHOOSE")
+            conversation_state.set(number, "data", {"cancel_rows": [dict(r) for r in rows[:5]]})
+            return ["Qual consulta deseja cancelar?\n" + "\n".join(items) + "\n\nResponda com 1 a 5 ou digite 'voltar' para o menu."]
+
+        if current == "CANCEL_CHOOSE":
+            if message.strip().lower() == "voltar":
+                conversation_state.set(number, "state", "MENU")
+                return [build_menu()]
+            m = re.search(r"\b([1-5])\b", message)
+            if not m:
+                return ["Responda com um número de 1 a 5, ou 'voltar' para o menu."]
+            idx = int(m.group(1)) - 1
+            rows = state.get("data", {}).get("cancel_rows", [])
+            if idx < 0 or idx >= len(rows):
+                return ["Opção inválida. Tente novamente (1–5)."]
+            chosen = rows[idx]
+            event_id = chosen.get("google_calendar_event_id")
+            try:
+                calendar_service.delete_event(event_id)
+                database.update_meeting_status(chosen["id"], "CANCELADA")
+            except Exception:
+                pass
+            conversation_state.clear(number)
+            return ["Consulta cancelada com sucesso. Se desejar, podemos agendar outro horário. Digite 2 para ver opções."]
 
         # Default fallback
         conversation_state.set(number, "state", "MENU")
