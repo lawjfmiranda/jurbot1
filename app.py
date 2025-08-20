@@ -253,7 +253,7 @@ def evolution_webhook():
         text = _extract_text(msg)
         
         # Log ALL message attempts for debugging
-        event_type = payload.get("event", "unknown")
+        event_type = msg.get("event", "unknown")
         app.logger.info(f"Processing message: event='{event_type}', number='{number}', text='{text}' (len={len(text) if text else 0})")
         
         if not number or not text:
