@@ -33,9 +33,43 @@ class RequestIdFilter(logging.Filter):
         return True
 
 
+class RequestIdFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        if not hasattr(record, "req_id"):
+            record.req_id = "-"
+        return super().format(record)
+
+
+def _install_req_id_formatter() -> None:
+    root_logger = logging.getLogger()
+    for handler in list(root_logger.handlers):
+        fmt = handler.formatter._fmt if handler.formatter else "%(asctime)s %(levelname)s %(name)s - %(message)s | %(req_id)s"
+        datefmt = handler.formatter.datefmt if handler.formatter else None
+        handler.setFormatter(RequestIdFormatter(fmt=fmt, datefmt=datefmt))
+    for handler in list(app.logger.handlers):
+        fmt = handler.formatter._fmt if handler.formatter else "%(asctime)s %(levelname)s %(name)s - %(message)s | %(req_id)s"
+        datefmt = handler.formatter.datefmt if handler.formatter else None
+        handler.setFormatter(RequestIdFormatter(fmt=fmt, datefmt=datefmt))
+
+
 _req_filter = RequestIdFilter()
 logging.getLogger().addFilter(_req_filter)
 app.logger.addFilter(_req_filter)
+_install_req_id_formatter()
+
+
+# Garantir que TODOS os LogRecords tenham req_id, inclusive de libs de terceiros (apscheduler, gunicorn)
+_orig_factory = logging.getLogRecordFactory()
+
+
+def _record_factory(*args, **kwargs):
+    record = _orig_factory(*args, **kwargs)
+    if not hasattr(record, "req_id"):
+        record.req_id = "-"
+    return record
+
+
+logging.setLogRecordFactory(_record_factory)
 
 # Rate limit simples em memória por número
 _last_seen: dict[str, float] = {}
@@ -151,8 +185,7 @@ def debug_echo():
 def evolution_webhook():
     # correlation id por requisição
     req_id = request.headers.get("X-Req-Id") or str(uuid.uuid4())
-    # injetar req_id no logger via LogRecord extra
-    logging.LoggerAdapter(app.logger, extra={"req_id": req_id})
+    # usar extra={"req_id": req_id} nas mensagens abaixo
     token = request.headers.get("X-Webhook-Token") or request.args.get("token")
     if token and "/" in token:
         token = token.split("/", 1)[0]
