@@ -419,8 +419,9 @@ class Chatbot:
                     desc_lines.append(f"E-mail: {data.get('email')}")
                 description_value = "\n".join(desc_lines) if desc_lines else "Consulta inicial"
 
+                title_value = f"Consulta Inicial - {full_name} - +{number}"
                 event_id = calendar_service.create_event(
-                    title=f"Consulta Inicial - {full_name}",
+                    title=title_value,
                     start_datetime=start_dt,
                     end_datetime=end_dt,
                     description=description_value,
