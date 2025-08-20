@@ -198,7 +198,7 @@ class Chatbot:
                     return [format_areas_atuacao()]
                 if selected == "2":
                     # Verifica se já há consulta futura para este número
-                    existing = [r for r in database.get_future_meetings(datetime.now()) if r["whatsapp_number"] == number]
+                    existing = [r for r in database.get_future_meetings(datetime.utcnow()) if r["whatsapp_number"] == number]
                     if existing:
                         when = datetime.fromisoformat(str(existing[0]["meeting_datetime"]).replace("Z", "+00:00")).strftime("%d/%m/%Y %H:%M")
                         return [
@@ -215,7 +215,7 @@ class Chatbot:
                     return [format_informacoes_gerais()]
                 if selected == "4":
                     # listar próximos agendamentos do número
-                    rows = database.get_future_meetings(datetime.now())
+                    rows = database.get_future_meetings(datetime.utcnow())
                     rows = [r for r in rows if r["whatsapp_number"] == number]
                     if not rows:
                         return ["Você não possui consultas futuras registradas."]
@@ -416,7 +416,7 @@ class Chatbot:
             query = message.strip().lower()
             rows = []
             if query == "todas":
-                rows = database.get_future_meetings(datetime.now())
+                rows = database.get_future_meetings(datetime.utcnow())
             else:
                 try:
                     dt = datetime.strptime(query, "%d/%m/%Y")
