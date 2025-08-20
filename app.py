@@ -57,20 +57,6 @@ logging.getLogger().addFilter(_req_filter)
 app.logger.addFilter(_req_filter)
 _install_req_id_formatter()
 
-
-# Garantir que TODOS os LogRecords tenham req_id, inclusive de libs de terceiros (apscheduler, gunicorn)
-_orig_factory = logging.getLogRecordFactory()
-
-
-def _record_factory(*args, **kwargs):
-    record = _orig_factory(*args, **kwargs)
-    if not hasattr(record, "req_id"):
-        record.req_id = "-"
-    return record
-
-
-logging.setLogRecordFactory(_record_factory)
-
 # Rate limit simples em memória por número
 _last_seen: dict[str, float] = {}
 _MIN_INTERVAL_SECONDS = float(os.getenv("MIN_MSG_INTERVAL", "0.5"))
