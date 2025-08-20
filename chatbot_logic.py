@@ -90,7 +90,7 @@ def detect_intent(message: str) -> str:
     if contains_any(message, ["cancelar", "cancelamento", "desmarcar", "remarcar"]):
         return "CANCEL"
     # aceita variações: "1", "1.", "opção 1", etc
-    m = re.search(r"\b([1-3])\b", message.strip())
+    m = re.search(r"\b([1-4])\b", message.strip())
     if m:
         return "MENU_CHOICE"
     return "UNKNOWN"
@@ -168,6 +168,21 @@ class Chatbot:
             if intent == "CANCEL":
                 conversation_state.set(number, "state", "CANCEL_LOOKUP")
                 return ["Certo, vamos cancelar sua consulta. Informe a data (dd/mm/aaaa) ou digite 'todas' para listar as próximas do seu número."]
+            if contains_any(message, ["adiantar", "antecipar", "mais cedo"]):
+                # tentar slots mais próximos dos próximos 3 dias
+                existing = [r for r in database.get_future_meetings(datetime.now()) if r["whatsapp_number"] == number]
+                if not existing:
+                    conversation_state.set(number, "state", "SCHEDULING_PREF_PERIOD")
+                    return ["Não encontrei consulta ativa. Vamos agendar uma nova. Você prefere de manhã ou à tarde?"]
+                data["pref_period"] = data.get("pref_period", "indiferente")
+                conversation_state.set(number, "data", data)
+                conversation_state.set(number, "state", "SCHEDULING_SHOW_SLOTS")
+                fresh = calendar_service.get_next_available_slots(
+                    preferred_period=(data.get("pref_period") if data.get("pref_period") != "indiferente" else None),
+                    start_offset_days=0,
+                )
+                conversation_state.set(number, "data", {**data, "slots": [(s.isoformat(), e.isoformat()) for s, e in fresh[:3]]})
+                return ["Encontrei opções mais próximas:", present_slots(fresh)]
             if intent in ("GREET", "UNKNOWN"):
                 conversation_state.set(number, "state", "MENU")
                 return [build_menu()]
@@ -182,6 +197,15 @@ class Chatbot:
                 if selected == "1":
                     return [format_areas_atuacao()]
                 if selected == "2":
+                    # Verifica se já há consulta futura para este número
+                    existing = [r for r in database.get_future_meetings(datetime.now()) if r["whatsapp_number"] == number]
+                    if existing:
+                        when = datetime.fromisoformat(str(existing[0]["meeting_datetime"]).replace("Z", "+00:00")).strftime("%d/%m/%Y %H:%M")
+                        return [
+                            f"Você já possui uma consulta marcada para {when}.\n",
+                            "Se desejar, posso verificar uma data anterior para tentar adiantar, ou podemos cancelar e reagendar.",
+                            "Digite: 'adiantar' para procurar datas mais próximas, ou 'cancelar' para cancelar a atual.",
+                        ]
                     conversation_state.set(number, "state", "SCHEDULING_PREF_PERIOD")
                     return [
                         "Perfeito! Para agilizar, você prefere ser atendido de manhã ou à tarde? (responda: manhã, tarde ou indiferente)",
@@ -403,7 +427,7 @@ class Chatbot:
                     return ["Formato de data inválido. Envie como dd/mm/aaaa ou 'todas'."]
             rows = [r for r in rows if r["whatsapp_number"] == number]
             if not rows:
-                return ["Não encontrei consultas futuras para este número."]
+                return ["Não encontrei consultas futuras para este número. Digite 2 para agendar ou 'adiantar' para buscar datas mais próximas se já tiver uma consulta."]
             items = []
             for idx, r in enumerate(rows[:5], start=1):
                 when = datetime.fromisoformat(str(r["meeting_datetime"]).replace("Z", "+00:00")).strftime("%d/%m/%Y %H:%M")
