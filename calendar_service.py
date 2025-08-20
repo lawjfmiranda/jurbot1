@@ -1,5 +1,6 @@
 ﻿import os
 import json
+import logging
 from datetime import datetime, timedelta, time
 from typing import List, Tuple, Optional
 
@@ -20,6 +21,9 @@ BUSINESS_START_HOUR = int(os.getenv("BUSINESS_START_HOUR", "9"))
 BUSINESS_END_HOUR = int(os.getenv("BUSINESS_END_HOUR", "18"))
 
 
+logger = logging.getLogger(__name__)
+
+
 def _get_service():
     if not SERVICE_ACCOUNT_JSON:
         raise RuntimeError("GOOGLE_SERVICE_ACCOUNT_JSON nÃ£o configurado.")
@@ -31,6 +35,7 @@ def _get_service():
         credentials = service_account.Credentials.from_service_account_file(
             SERVICE_ACCOUNT_JSON, scopes=GOOGLE_SCOPES
         )
+    logger.debug("calendar: building service client")
     return build("calendar", "v3", credentials=credentials, cache_discovery=False)
 
 
@@ -70,6 +75,7 @@ def _list_busy_intervals(service, time_min: datetime, time_max: datetime) -> Lis
         "timeZone": TIMEZONE,
         "items": [{"id": CALENDAR_ID}],
     }
+    logger.debug("calendar.freebusy", extra={"timeMin": body["timeMin"], "timeMax": body["timeMax"]})
     resp = service.freebusy().query(body=body).execute()
     busy_items = resp.get("calendars", {}).get(CALENDAR_ID, {}).get("busy", [])
     intervals: List[Tuple[datetime, datetime]] = []
@@ -143,6 +149,7 @@ def get_next_available_slots(
         if len(found) >= count:
             break
         day += timedelta(days=1)
+    logger.info("calendar.get_next_available_slots", extra={"found": len(found), "preferred_period": preferred_period, "start_offset_days": start_offset_days})
     return found
 
 
@@ -157,6 +164,7 @@ def create_event(title: str, start_datetime: datetime, end_datetime: datetime, d
     }
     if attendees:
         event_body["attendees"] = [{"email": e} for e in attendees if e]
+    logger.info("calendar.create_event", extra={"title": title, "start": event_body["start"]["dateTime"], "end": event_body["end"]["dateTime"]})
     created = service.events().insert(calendarId=CALENDAR_ID, body=event_body, sendUpdates="all").execute()
     return created.get("id")
 
@@ -195,12 +203,15 @@ def get_available_slots_for_date(target_date: datetime, duration_minutes: int = 
             candidates = [(s, e) for (s, e) in candidates if 9 <= s.hour < 12]
         elif preferred_period.lower().startswith("tar"):
             candidates = [(s, e) for (s, e) in candidates if 13 <= s.hour < 18]
-    return _filter_free_slots(candidates, busy)
+    free = _filter_free_slots(candidates, busy)
+    logger.info("calendar.get_available_slots_for_date", extra={"date": target_date.isoformat(), "free": len(free)})
+    return free
 
 
 def delete_event(event_id: str) -> None:
     service = _get_service()
     try:
+        logger.info("calendar.delete_event", extra={"event_id": event_id})
         service.events().delete(calendarId=CALENDAR_ID, eventId=event_id, sendUpdates="all").execute()
     except Exception:
         # Se não existir mais, seguimos sem erro
@@ -226,6 +237,7 @@ def update_event(event_id: str, title: Optional[str] = None, start_datetime: Opt
         body["attendees"] = [{"email": e} for e in attendees if e]
     if not body:
         return
+    logger.info("calendar.update_event", extra={"event_id": event_id, "has_title": "summary" in body, "has_times": bool(body.get("start")) or bool(body.get("end"))})
     service.events().patch(calendarId=CALENDAR_ID, eventId=event_id, body=body, sendUpdates="all").execute()
 
 

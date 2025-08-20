@@ -1,8 +1,11 @@
 ﻿import os
 import sqlite3
+import logging
 from contextlib import contextmanager
 from datetime import datetime, timedelta, date, timezone
 
+
+logger = logging.getLogger(__name__)
 
 DB_PATH = os.getenv("DB_PATH", os.path.join(os.path.dirname(__file__), "advocacia.db"))
 
@@ -83,6 +86,7 @@ def upsert_client(whatsapp_number: str, full_name: str | None = None, email: str
                 "INSERT INTO clientes (whatsapp_number, full_name, email, case_summary, lead_priority) VALUES (?,?,?,?,?)",
                 (whatsapp_number, full_name, email, case_summary, lead_priority),
             )
+            logger.info("db.upsert_client.insert", extra={"number": whatsapp_number})
             return cursor.lastrowid
         client_id = row[0]
 
@@ -105,6 +109,7 @@ def upsert_client(whatsapp_number: str, full_name: str | None = None, email: str
         if updates:
             params.append(client_id)
             conn.execute(f"UPDATE clientes SET {', '.join(updates)} WHERE id = ?", params)
+            logger.info("db.upsert_client.update", extra={"id": client_id, "fields": len(updates)})
 
         return client_id
 
@@ -135,12 +140,14 @@ def add_meeting(client_id: int, google_calendar_event_id: str, meeting_datetime:
             "INSERT INTO reunioes (client_id, google_calendar_event_id, meeting_datetime, status) VALUES (?,?,?,?)",
             (client_id, google_calendar_event_id, _to_utc_iso(meeting_datetime), status),
         )
+        logger.info("db.add_meeting", extra={"client_id": client_id, "when": _to_utc_iso(meeting_datetime)})
         return cur.lastrowid
 
 
 def update_meeting_status(meeting_id: int, status: str) -> None:
     with get_connection() as conn:
         conn.execute("UPDATE reunioes SET status = ? WHERE id = ?", (status, meeting_id))
+        logger.info("db.update_meeting_status", extra={"id": meeting_id, "status": status})
 
 
 def get_future_meetings(start_from: datetime) -> list[sqlite3.Row]:
@@ -183,6 +190,7 @@ def update_meeting_time_by_event(event_id: str, new_datetime: datetime) -> None:
             "UPDATE reunioes SET meeting_datetime = ? WHERE google_calendar_event_id = ?",
             (_to_utc_iso(new_datetime), event_id),
         )
+        logger.info("db.update_meeting_time_by_event", extra={"event_id": event_id, "when": _to_utc_iso(new_datetime)})
 
 
 def get_future_meetings_by_number(whatsapp_number: str, start_from: datetime) -> list[sqlite3.Row]:

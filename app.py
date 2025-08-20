@@ -1,6 +1,7 @@
 ﻿import os
 import json
 import logging
+import uuid
 from typing import Any, Dict, List, Optional
 
 from flask import Flask, jsonify, request
@@ -19,7 +20,10 @@ app = Flask(__name__)
 chatbot = Chatbot()
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
-logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO), format="%(asctime)s %(levelname)s %(name)s - %(message)s")
+logging.basicConfig(
+    level=getattr(logging, LOG_LEVEL, logging.INFO),
+    format="%(asctime)s %(levelname)s %(name)s - %(message)s | %(req_id)s",
+)
 
 # Rate limit simples em memória por número
 _last_seen: dict[str, float] = {}
@@ -133,6 +137,10 @@ def debug_echo():
 
 @app.route("/webhook/evolution", methods=["POST"])
 def evolution_webhook():
+    # correlation id por requisição
+    req_id = request.headers.get("X-Req-Id") or str(uuid.uuid4())
+    # injetar req_id no logger via LogRecord extra
+    logging.LoggerAdapter(app.logger, extra={"req_id": req_id})
     token = request.headers.get("X-Webhook-Token") or request.args.get("token")
     if token and "/" in token:
         token = token.split("/", 1)[0]
@@ -146,7 +154,10 @@ def evolution_webhook():
             body = json.loads(request.data.decode("utf-8")) if request.data else {}
         except Exception:
             body = {}
-    app.logger.info(f"Webhook received type={type(body)} keys={list(body.keys()) if isinstance(body, dict) else 'n/a'}")
+    app.logger.info(
+        f"Webhook received type={type(body)} keys={list(body.keys()) if isinstance(body, dict) else 'n/a'}",
+        extra={"req_id": req_id},
+    )
     messages: List[Dict[str, Any]] = []
 
     # Evolution pode enviar eventos por mensagem (webhookByEvents) ou listas em 'messages'
@@ -158,7 +169,7 @@ def evolution_webhook():
     else:
         messages = [body]
 
-    app.logger.info(f"Webhook messages_count={len(messages)}")
+    app.logger.info(f"Webhook messages_count={len(messages)}", extra={"req_id": req_id})
     for idx, msg in enumerate(messages):
         # Ignore messages sent by our own instance (status updates, echoes)
         own = msg.get("fromMe") or msg.get("from_me")
@@ -175,7 +186,10 @@ def evolution_webhook():
                 short = json.dumps(msg)[:300]
             except Exception:
                 short = str(msg)[:300]
-            app.logger.info(f"Skipped msg idx={idx} number={number} text_len={(len(text) if text else 0)} payload={short}")
+            app.logger.info(
+                f"Skipped msg idx={idx} number={number} text_len={(len(text) if text else 0)} payload={short}",
+                extra={"req_id": req_id},
+            )
             continue
 
         # rate limit
@@ -187,7 +201,10 @@ def evolution_webhook():
             continue
         _last_seen[number] = now_s
 
-        app.logger.info(f"Incoming idx={idx} number={number} text='{text[:120]}'")
+        app.logger.info(
+            f"Incoming idx={idx} number={number} text='{text[:120]}'",
+            extra={"req_id": req_id},
+        )
         try:
             responses = chatbot.handle_incoming_message(number, text)
         except Exception as e:
@@ -201,7 +218,10 @@ def evolution_webhook():
         for r in responses:
             try:
                 whatsapp_service.send_whatsapp_message(number, r)
-                app.logger.info(f"Sent reply to {number}: '{r[:120]}'")
+                app.logger.info(
+                    f"Sent reply to {number}: '{r[:120]}'",
+                    extra={"req_id": req_id},
+                )
             except Exception:
                 app.logger.exception(f"Failed to send WhatsApp message to {number}")
 

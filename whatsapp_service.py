@@ -1,7 +1,10 @@
 ﻿import os
+import logging
 import requests
 from typing import List, Optional
 
+
+logger = logging.getLogger(__name__)
 
 EVOLUTION_BASE_URL = os.getenv("EVOLUTION_API_BASE_URL", "")
 EVOLUTION_INSTANCE_ID = os.getenv("EVOLUTION_INSTANCE_ID", "")
@@ -38,6 +41,7 @@ def send_whatsapp_message(number: str, text: str) -> None:
         "apikey": EVOLUTION_API_KEY,
     }
     url = _endpoint_send_text()
+    logger.info("whatsapp.send_text", extra={"number": number, "len": len(text)})
     resp = requests.post(url, json=payload, headers=headers, timeout=15)
     resp.raise_for_status()
 
@@ -65,6 +69,7 @@ def send_whatsapp_media(number: str, caption: Optional[str], media_url: Optional
         "apikey": EVOLUTION_API_KEY,
     }
     url = _endpoint_send_media()
+    logger.info("whatsapp.send_media", extra={"number": number, "has_url": bool(media_url), "has_base64": bool(media_base64)})
     resp = requests.post(url, json=payload, headers=headers, timeout=20)
     resp.raise_for_status()
 
@@ -88,6 +93,7 @@ def ensure_webhook(url_override: Optional[str] = None, events: Optional[List[str
         "Content-Type": "application/json",
         "apikey": EVOLUTION_API_KEY,
     }
+    logger.info("whatsapp.ensure_webhook", extra={"url": body.get("url"), "events": body.get("events")})
     resp = requests.post(_endpoint_set_webhook(), json=body, headers=headers, timeout=15)
     resp.raise_for_status()
 

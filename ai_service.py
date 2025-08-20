@@ -1,4 +1,5 @@
 import os
+import logging
 from typing import Optional
 
 try:
@@ -7,6 +8,8 @@ except Exception:  # Library missing; we'll degrade gracefully
     genai = None  # type: ignore
 
 
+logger = logging.getLogger(__name__)
+
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
 GEMINI_MODEL_QUALITY = os.getenv("GEMINI_MODEL_QUALITY", "gemini-1.5-pro")
@@ -14,21 +17,27 @@ GEMINI_MODEL_QUALITY = os.getenv("GEMINI_MODEL_QUALITY", "gemini-1.5-pro")
 
 def _ensure_client():
     if not GEMINI_API_KEY or not genai:
+        logger.debug("ai_service: client unavailable (missing key or library)")
         return None
     try:
         genai.configure(api_key=GEMINI_API_KEY)
+        logger.debug("ai_service: configured generative model", extra={"model": GEMINI_MODEL})
         return genai.GenerativeModel(GEMINI_MODEL)
     except Exception:
+        logger.exception("ai_service: failed to initialize client")
         return None
 
 
 def _ensure_quality_client():
     if not GEMINI_API_KEY or not genai:
+        logger.debug("ai_service: quality client unavailable (missing key or library)")
         return None
     try:
         genai.configure(api_key=GEMINI_API_KEY)
+        logger.debug("ai_service: configured quality model", extra={"model": GEMINI_MODEL_QUALITY})
         return genai.GenerativeModel(GEMINI_MODEL_QUALITY)
     except Exception:
+        logger.exception("ai_service: failed to initialize quality client")
         return None
 
 
@@ -55,10 +64,12 @@ def extract_intent(user_text: str) -> dict:
 
     Retorno: { intent: one_of(ALLOWED_INTENTS), area: optional[str], confidence: float }
     """
+    logger.info("ai_service.extract_intent: start")
     model = _ensure_client()
     if not model:
         # fallback heurístico simples
         t = user_text.lower()
+        logger.warning("ai_service.extract_intent: fallback heuristics")
         if any(k in t for k in ["cancelar", "desmarcar"]):
             return {"intent": "cancelar", "confidence": 0.8}
         if any(k in t for k in ["remarcar", "adiantar", "antecipar"]):
@@ -90,8 +101,10 @@ def extract_intent(user_text: str) -> dict:
             intent = "desconhecido"
         area = data.get("area") if area_in_allowed(data.get("area")) else None
         conf = float(data.get("confidence") or 0.5)
+        logger.info("ai_service.extract_intent: parsed", extra={"intent": intent, "area": area, "confidence": conf})
         return {"intent": intent, "area": area, "confidence": conf}
     except Exception:
+        logger.exception("ai_service.extract_intent: error in generation or parsing")
         return {"intent": "desconhecido", "confidence": 0.3}
 
 
@@ -108,6 +121,7 @@ def small_talk_reply(base_text: str, user_text: Optional[str] = None, max_chars:
     """
     model = _ensure_client()
     if not model:
+        logger.debug("ai_service.small_talk: fallback (no model)")
         return base_text
     sys_prompt = (
         "Reescreva a mensagem abaixo em pt-BR, mantendo o significado, tom profissional, acolhedor e claro. "
@@ -118,15 +132,19 @@ def small_talk_reply(base_text: str, user_text: Optional[str] = None, max_chars:
         text = (resp.text or "").strip()
         if len(text) > max_chars:
             text = text[:max_chars]
+        logger.debug("ai_service.small_talk: success", extra={"len": len(text)})
         return text or base_text
     except Exception:
+        logger.exception("ai_service.small_talk: error in generation")
         return base_text
 
 
 def legal_answer(area: str, question: str, max_chars: int = 700) -> str:
     """Responde dúvidas jurídicas genéricas com disclaimers e limites. Não dá aconselhamento específico."""
+    logger.info("ai_service.legal_answer: start", extra={"area": area})
     model = _ensure_quality_client() or _ensure_client()
     if not model:
+        logger.warning("ai_service.legal_answer: fallback (no model)")
         return (
             "Isto é informativo e não substitui orientação de um advogado. "
             "Podemos conversar mais na consulta para analisar seu caso."
@@ -145,8 +163,10 @@ def legal_answer(area: str, question: str, max_chars: int = 700) -> str:
         text = (resp.text or "").strip()
         if len(text) > max_chars:
             text = text[:max_chars]
+        logger.info("ai_service.legal_answer: success", extra={"len": len(text)})
         return text
     except Exception:
+        logger.exception("ai_service.legal_answer: error in generation")
         return (
             "Isto é informativo e não substitui orientação de um advogado. "
             "Posso te explicar melhor em uma consulta rápida."

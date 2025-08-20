@@ -9,9 +9,11 @@ try:
 except Exception:
     ZoneInfo = None
 
+import logging
 import database
 import calendar_service
 import notification_service
+import ai_service
 import ai_service
 
 
@@ -149,7 +151,7 @@ def _weekday_pt_br(dt: datetime) -> str:
 
 class Chatbot:
     def __init__(self) -> None:
-        pass
+        self.logger = logging.getLogger(self.__class__.__name__)
 
     def handle_incoming_message(self, raw_number: str, message: str) -> List[str]:
         number = normalize_number(raw_number)
@@ -164,6 +166,7 @@ class Chatbot:
         # Flow control
         if current == "INIT":
             intent = detect_intent(message)
+            self.logger.info("chatbot.state", extra={"user": number, "state": current, "intent": intent})
             if intent == "LEAD":
                 conversation_state.set(number, "state", "LEAD_Q_START")
                 return [
@@ -206,6 +209,7 @@ class Chatbot:
 
         if current == "MENU":
             intent = detect_intent(message)
+            self.logger.info("chatbot.state", extra={"user": number, "state": current, "intent": intent})
             if intent == "CANCEL":
                 conversation_state.set(number, "state", "CANCEL_LOOKUP")
                 return ["Certo, vamos cancelar sua consulta. Informe a data (dd/mm/aaaa) ou digite 'todas' para listar."]

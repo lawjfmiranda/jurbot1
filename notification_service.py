@@ -1,10 +1,13 @@
 ﻿import os
 import smtplib
+import logging
 from email.message import EmailMessage
 from typing import Optional
 
 import requests
 
+
+logger = logging.getLogger(__name__)
 
 INTERNAL_WEBHOOK_URL = os.getenv("INTERNAL_WEBHOOK_URL")
 
@@ -21,6 +24,7 @@ def send_internal_notification(subject: str, content: str) -> None:
     # Try webhook first
     if INTERNAL_WEBHOOK_URL:
         try:
+            logger.info("notify.webhook", extra={"has_url": bool(INTERNAL_WEBHOOK_URL)})
             resp = requests.post(INTERNAL_WEBHOOK_URL, json={"subject": subject, "content": content}, timeout=10)
             resp.raise_for_status()
             delivered = True
@@ -49,7 +53,7 @@ def send_internal_notification(subject: str, content: str) -> None:
 
     if not delivered:
         # As last resort, print to stdout (logs)
-        print(f"[NOTIFICATION] {subject}\n{content}")
+        logger.warning("notify.fallback.print", extra={"subject": subject, "len": len(content)})
 
 
 def notify_error(subject: str, content: str) -> None:
