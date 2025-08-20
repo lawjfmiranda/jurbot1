@@ -17,6 +17,7 @@ import database
 import calendar_service
 import notification_service
 import ai_service
+from utils.lead_qualification import lead_qualifier
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,17 @@ class AIConversationManager:
             self.logger.info(f"Continuing schedule flow in state: {current_state}")
             # Forçar intent=schedule para continuar fluxo
             decision = {"intent": "schedule", "action": "continue_schedule", "response": ""}
+        elif current_state in ["QUALIFY"]:
+            self.logger.info(f"Continuing qualification flow in state: {current_state}")
+            # Forçar intent=qualify para continuar qualificação
+            decision = {"intent": "qualify", "action": "continue_qualify", "response": ""}
+        elif current_state == "SCHEDULE_AFTER_QUALIFY":
+            self.logger.info("Transitioning from qualification to scheduling")
+            # Cliente quer agendar após qualificação
+            if any(word in message.lower() for word in ["sim", "quero", "vamos", "ok", "agendar"]):
+                decision = {"intent": "schedule", "action": "start_schedule", "response": ""}
+            else:
+                decision = {"intent": "small_talk", "action": "chat", "response": ""}
         else:
             # IA decide ação e resposta
             decision = self._ai_decide(message, context)
@@ -116,8 +128,16 @@ REGRAS DE CLASSIFICAÇÃO:
 - Use "info" APENAS para informações do escritório (endereço, telefone, horário de funcionamento)
 - Use "small_talk" para: perguntas sobre VALORES/PREÇOS/CUSTOS, despedidas, confirmações, agradecimentos
 - Use "legal" para dúvidas jurídicas específicas
+- **Use "qualify" para casos detalhados que precisam de qualificação (ex: problemas específicos, situações complexas)**
 - NUNCA interrompa um processo de agendamento em andamento
 - Para respostas como "ok", "perfeito", "obrigado", "tchau" → use "small_talk"
+
+QUANDO USAR "qualify":
+- Cliente descreve um problema específico e detalhado
+- Menciona valores, prazos, situações urgentes
+- Casos de violência, acidentes, separação, problemas trabalhistas
+- Qualquer situação que precise de análise de viabilidade
+- Mensagens longas com contexto factual
 
 EXEMPLOS DE CLASSIFICAÇÃO:
   * "quando é minha consulta?" → list_meetings
@@ -136,7 +156,7 @@ TOM PROFISSIONAL:
 
 Responda APENAS com JSON:
 {{
-  "intent": "greeting|schedule|cancel|legal|info|areas|list_meetings|small_talk",
+  "intent": "greeting|schedule|cancel|legal|info|areas|list_meetings|small_talk|qualify",
   "action": "acao_especifica",
   "response": "resposta natural e profissional"
 }}"""
@@ -193,7 +213,8 @@ Responda APENAS com JSON:
             "info": self._handle_info,
             "areas": self._handle_areas,
             "list_meetings": self._handle_list,
-            "small_talk": self._handle_chat
+            "small_talk": self._handle_chat,
+            "qualify": self._handle_qualification  # Novo handler
         }
         
         handler = handlers.get(intent, self._handle_chat)
@@ -608,6 +629,226 @@ Responda APENAS com JSON:
                 )
         
         return {"replies": [response], "new_state": {"state": "FREE", "data": {}}}
+    
+    def _handle_qualification(self, user_number: str, message: str, state: Dict,
+                             client: Optional[Dict], decision: Dict) -> Dict[str, Any]:
+        """Qualificação inteligente de leads por área."""
+        
+        current = state.get("state", "FREE")
+        data = state.get("data", {})
+        
+        if current == "FREE":
+            # Identificar área para qualificação
+            try:
+                intent_result = ai_service.extract_intent(message)
+                area = intent_result.get("area")
+                
+                if not area:
+                    # Tentar identificar área por palavras-chave
+                    msg_lower = message.lower()
+                    area_keywords = {
+                        "Responsabilidade Civil": ["indenização", "acidente", "dano", "prejuízo"],
+                        "Direito das Famílias": ["divórcio", "guarda", "pensão", "separação"],
+                        "Ação Penal": ["crime", "processo", "polícia", "preso"],
+                        "Medida Protetiva": ["violência", "ameaça", "proteção", "agressão"]
+                    }
+                    
+                    for area_name, keywords in area_keywords.items():
+                        if any(kw in msg_lower for kw in keywords):
+                            area = area_name
+                            break
+                
+                if not area:
+                    return self._handle_legal(user_number, message, state, client, decision)
+                
+                # Começar qualificação
+                questions = lead_qualifier.get_questions_for_area(area)
+                if not questions:
+                    return self._handle_legal(user_number, message, state, client, decision)
+                
+                data["qualification_area"] = area
+                data["questions"] = questions
+                data["current_question"] = 0
+                data["answers"] = {}
+                
+                first_question = questions[0]
+                
+                response_parts = [
+                    f"Entendi que você tem uma questão de {area}.",
+                    "Para te ajudar da melhor forma, vou fazer algumas perguntas específicas, ok?",
+                    "",
+                    f"📋 {first_question['question']}"
+                ]
+                
+                if "options" in first_question:
+                    response_parts.append("")
+                    for i, option in enumerate(first_question["options"], 1):
+                        response_parts.append(f"{i}. {option}")
+                
+                return {
+                    "replies": ["\n".join(response_parts)],
+                    "new_state": {"state": "QUALIFY", "data": data}
+                }
+                
+            except Exception as e:
+                self.logger.error(f"Erro na qualificação: {e}")
+                return self._handle_legal(user_number, message, state, client, decision)
+        
+        elif current == "QUALIFY":
+            # Processar resposta da qualificação
+            area = data.get("qualification_area")
+            questions = data.get("questions", [])
+            current_q_idx = data.get("current_question", 0)
+            answers = data.get("answers", {})
+            
+            if current_q_idx >= len(questions):
+                # Qualificação completa
+                return self._complete_qualification(user_number, area, answers, data)
+            
+            current_question = questions[current_q_idx]
+            question_id = current_question["id"]
+            
+            # Processar resposta
+            if "options" in current_question:
+                # Pergunta de múltipla escolha
+                try:
+                    choice_num = int(message.strip())
+                    if 1 <= choice_num <= len(current_question["options"]):
+                        answer = current_question["options"][choice_num - 1]
+                    else:
+                        return {
+                            "replies": [f"Por favor, escolha um número de 1 a {len(current_question['options'])}."],
+                            "new_state": state
+                        }
+                except ValueError:
+                    # Tentativa de resposta em texto livre
+                    answer = message.strip()
+            else:
+                # Pergunta aberta
+                answer = message.strip()
+            
+            answers[question_id] = answer
+            
+            # Verificar se há pergunta condicional
+            response_parts = []
+            if "conditional" in current_question:
+                condition = current_question["conditional"]
+                if condition["if"] in answer:
+                    response_parts.append(condition["then"])
+            
+            # Follow-up da pergunta atual
+            if "follow_up" in current_question:
+                response_parts.append(current_question["follow_up"])
+            
+            # Próxima pergunta
+            data["current_question"] = current_q_idx + 1
+            data["answers"] = answers
+            
+            if data["current_question"] < len(questions):
+                next_question = questions[data["current_question"]]
+                response_parts.extend(["", f"📋 {next_question['question']}"])
+                
+                if "options" in next_question:
+                    response_parts.append("")
+                    for i, option in enumerate(next_question["options"], 1):
+                        response_parts.append(f"{i}. {option}")
+                
+                return {
+                    "replies": ["\n".join(response_parts)],
+                    "new_state": {"state": "QUALIFY", "data": data}
+                }
+            else:
+                # Qualificação completa
+                return self._complete_qualification(user_number, area, answers, data)
+        
+        # Default
+        return self._handle_chat(user_number, message, state, client, decision)
+    
+    def _complete_qualification(self, user_number: str, area: str, answers: Dict, data: Dict) -> Dict[str, Any]:
+        """Completa o processo de qualificação."""
+        
+        # Calcular score e urgência
+        score = lead_qualifier.calculate_lead_score(area, answers)
+        urgency = lead_qualifier.check_urgency(area, answers)
+        
+        # Salvar dados do lead qualificado no banco
+        try:
+            # Atualizar cliente com dados coletados
+            case_summary = f"Área: {area}\nScore: {score}/10\nRespostas: {answers}"
+            priority = "ALTA" if urgency["is_urgent"] or score >= 8 else ("MÉDIA" if score >= 5 else "BAIXA")
+            
+            database.upsert_client(
+                whatsapp_number=user_number,
+                case_summary=case_summary,
+                lead_priority=priority
+            )
+            
+            # Notificar equipe
+            try:
+                summary = lead_qualifier.generate_summary(area, answers)
+                import notification_service
+                notification_service.send_internal_notification(
+                    f"🎯 Lead Qualificado - {area} (Score: {score}/10)",
+                    summary
+                )
+            except Exception as e:
+                self.logger.error(f"Erro ao notificar equipe: {e}")
+        
+        except Exception as e:
+            self.logger.error(f"Erro ao salvar qualificação: {e}")
+        
+        # Resposta personalizada baseada no score e urgência
+        response_parts = [
+            "✅ Obrigado pelas informações! Analisei seu caso e posso te ajudar."
+        ]
+        
+        if urgency["is_urgent"]:
+            if urgency["urgency_level"] == "critical":
+                response_parts.extend([
+                    "",
+                    "🚨 **SITUAÇÃO URGENTE DETECTADA**",
+                    f"Recomendo contato imediato: {urgency['recommended_action']}",
+                    "",
+                    "Vou te conectar com um advogado especialista agora mesmo.",
+                    "Quer que eu agende uma consulta para hoje ainda?"
+                ])
+            else:
+                response_parts.extend([
+                    "",
+                    "⚡ Identifiquei urgência no seu caso.",
+                    "Vou priorizar seu atendimento.",
+                    "",
+                    "Posso agendar uma consulta para os próximos dias?"
+                ])
+        elif score >= 8:
+            response_parts.extend([
+                "",
+                "🎯 Seu caso tem alta viabilidade jurídica!",
+                "Temos experiência sólida em casos similares.",
+                "",
+                "Gostaria de agendar uma consulta para discutirmos a estratégia?"
+            ])
+        elif score >= 5:
+            response_parts.extend([
+                "",
+                "📋 Vamos analisar melhor seu caso.",
+                "Há possibilidades interessantes para explorar.",
+                "",
+                "Que tal marcarmos uma consulta para avaliarmos juntos?"
+            ])
+        else:
+            response_parts.extend([
+                "",
+                "📝 Seu caso precisa de uma análise mais detalhada.",
+                "Na consulta posso te dar orientações mais precisas.",
+                "",
+                "Vamos marcar um horário para conversarmos?"
+            ])
+        
+        return {
+            "replies": ["\n".join(response_parts)],
+            "new_state": {"state": "SCHEDULE_AFTER_QUALIFY", "data": {"qualification_complete": True, "area": area, "score": score}}
+        }
     
     def _weekday(self, dt: datetime) -> str:
         """Dia da semana em PT."""

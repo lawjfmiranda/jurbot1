@@ -449,6 +449,19 @@ def evolution_webhook():
             metrics.record_time("chatbot_processing", processing_time)
             metrics.increment("chatbot_success")
             
+            # Métricas específicas por tipo de interação
+            try:
+                # Detectar se houve qualificação
+                responses_text = " ".join(responses).lower()
+                if "qualificação" in responses_text or "analisei seu caso" in responses_text:
+                    metrics.increment("lead_qualifications")
+                elif "consulta confirmada" in responses_text:
+                    metrics.increment("appointments_scheduled")
+                elif "cancelado" in responses_text:
+                    metrics.increment("appointments_cancelled")
+            except:
+                pass
+            
         except Exception as e:
             app.logger.exception("Error in chatbot logic")
             
