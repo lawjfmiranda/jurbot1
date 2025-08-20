@@ -125,6 +125,20 @@ def present_slots(slots: List[tuple[datetime, datetime]]) -> str:
     return "\n".join(lines)
 
 
+def _weekday_pt_br(dt: datetime) -> str:
+    names = [
+        "segunda-feira",
+        "terça-feira",
+        "quarta-feira",
+        "quinta-feira",
+        "sexta-feira",
+        "sábado",
+        "domingo",
+    ]
+    name = names[dt.weekday()]
+    return name[0].upper() + name[1:]
+
+
 class Chatbot:
     def __init__(self) -> None:
         pass
@@ -186,7 +200,7 @@ class Chatbot:
             conversation_state.set(number, "data", data)
             lines = ["Escolha a data desejada:"]
             for idx, d in enumerate(days, start=1):
-                lines.append(f"{idx}️⃣  {d.strftime('%A, %d/%m/%Y')}")
+                lines.append(f"{idx}️⃣  {_weekday_pt_br(d)}, {d.strftime('%d/%m/%Y')}")
             lines.append("\nResponda com 1 a 5. Digite 'voltar' para o menu.")
             return ["\n".join(lines)]
 
