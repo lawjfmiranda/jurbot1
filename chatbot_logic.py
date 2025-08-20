@@ -160,7 +160,10 @@ class Chatbot:
                     return [format_areas_atuacao()]
                 if selected == "2":
                     conversation_state.set(number, "state", "SCHEDULING_PREF_PERIOD")
-                    return ["Perfeito! Para agilizar, você prefere ser atendido de manhã ou à tarde? (responda: manhã, tarde ou indiferente)"]
+                    return [
+                        "Perfeito! Para agilizar, você prefere ser atendido de manhã ou à tarde? (responda: manhã, tarde ou indiferente)",
+                        "Se desejar, responda 'voltar' para retornar ao menu."
+                    ]
                 if selected == "3":
                     return [format_informacoes_gerais()]
             # Fallback to menu
@@ -184,7 +187,7 @@ class Chatbot:
             except Exception:
                 slots = []
             conversation_state.set(number, "data", {**data, "slots": [(s.isoformat(), e.isoformat()) for s, e in slots[:3]]})
-            return [present_slots(slots)]
+            return [present_slots(slots), "Caso nenhum horário sirva, digite 'mais' para ver outras datas ou 'voltar' para o menu."]
 
         if current in ("LEAD_Q_START", "ASK_NAME"):
             # Store full name
@@ -254,8 +257,23 @@ class Chatbot:
 
         if current == "SCHEDULING_SHOW_SLOTS":
             # Expect choice 1-3
-            choice_match = re.search(r"\b([1-3])\b", message)
+            if message.lower() == "voltar":
+                conversation_state.set(number, "state", "MENU")
+                return [build_menu()]
             data = state.get("data", {})
+            if message.lower() == "mais":
+                # Buscar próximos 3 slots após +2 dias
+                try:
+                    fresh = calendar_service.get_next_available_slots(
+                        preferred_period=(data.get("pref_period") if data.get("pref_period") != "indiferente" else None),
+                        start_offset_days=2,
+                    )
+                except Exception:
+                    fresh = []
+                conversation_state.set(number, "data", {**data, "slots": [(s.isoformat(), e.isoformat()) for s, e in fresh[:3]]})
+                return [present_slots(fresh), "Digite 'mais' para ver outras datas, ou 'voltar' para o menu."]
+
+            choice_match = re.search(r"\b([1-3])\b", message)
             slots = data.get("slots", [])
             if not slots:
                 # Try fetch again if empty
@@ -267,7 +285,7 @@ class Chatbot:
                     fresh = []
                 if fresh:
                     conversation_state.set(number, "data", {**data, "slots": [(s.isoformat(), e.isoformat()) for s, e in fresh[:3]]})
-                    return [present_slots(fresh)]
+                    return [present_slots(fresh), "Digite 'mais' para ver outras datas, ou 'voltar' para o menu."]
                 return ["No momento não há horários disponíveis para agendamento. Posso verificar novamente mais tarde ou coletar sua preferência de horários."]
             if choice_match and slots:
                 idx = int(choice_match.group(1)) - 1

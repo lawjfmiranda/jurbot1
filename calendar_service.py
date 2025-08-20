@@ -107,21 +107,29 @@ def _filter_free_slots(candidates: List[Tuple[datetime, datetime]], busy: List[T
     return free
 
 
-def get_next_available_slots(count: int = 3, duration_minutes: int = 60, preferred_period: Optional[str] = None) -> List[Tuple[datetime, datetime]]:
+def get_next_available_slots(
+    count: int = 3,
+    duration_minutes: int = 60,
+    preferred_period: Optional[str] = None,
+    start_offset_days: int = 0,
+) -> List[Tuple[datetime, datetime]]:
     service = _get_service()
     tz = _tz()
     now = datetime.now(tz) if tz else datetime.now()
     found: List[Tuple[datetime, datetime]] = []
-    day = now
+    day = now + timedelta(days=start_offset_days)
     horizon_days = 14
     for _ in range(horizon_days):
-        day = day + timedelta(days=1) if day.date() == now.date() else day
         if not _is_business_day(day):
             day += timedelta(days=1)
             continue
         bh_start, bh_end = _business_hours_for_day(day)
         busy = _list_busy_intervals(service, bh_start, bh_end)
         candidates = _generate_candidate_slots(day, duration_minutes)
+        # se for hoje, considerar apenas slots a partir de agora + 60min
+        if day.date() == now.date():
+            min_start = now + timedelta(minutes=60)
+            candidates = [(s, e) for (s, e) in candidates if s >= min_start]
         # filtra por período preferido
         if preferred_period:
             if preferred_period.lower().startswith("man"):
