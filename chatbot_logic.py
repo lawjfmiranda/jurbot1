@@ -80,8 +80,18 @@ def build_menu() -> str:
     return menu
 
 
-def greeting_text() -> str:
-    return FAQ.get("boas_vindas", WELCOME_FALLBACK)
+def greeting_text(number: Optional[str] = None) -> str:
+    base = FAQ.get("boas_vindas", WELCOME_FALLBACK)
+    if number:
+        try:
+            client = database.get_client_by_whatsapp(number)
+            name = (client and client.get("full_name")) or None
+            if name:
+                first = str(name).split(" ")[0]
+                return base.replace("Olá!", f"Olá, {first}!")
+        except Exception:
+            pass
+    return base
 
 
 HELP_KEYWORDS = [
@@ -208,7 +218,7 @@ class Chatbot:
                     return [reply]
             if intent in ("GREET", "UNKNOWN"):
                 conversation_state.set(number, "state", "FREE_CHAT")
-                return [greeting_text()]
+                return [greeting_text(number)]
 
         if current == "FREE_CHAT":
             # Comandos rápidos
@@ -257,10 +267,16 @@ class Chatbot:
                             "Se desejar, posso verificar uma data anterior para tentar adiantar, ou podemos cancelar e reagendar.",
                             "Digite: 'adiantar' para procurar datas mais próximas, ou 'cancelar' para cancelar a atual.",
                         ]
-                    # Se não temos o nome, colete antes de seguir
+                    # Puxar dados existentes do cliente e evitar perguntar de novo
                     client = database.get_client_by_whatsapp(number)
-                    client_full_name = (client["full_name"] if client is not None else None)
-                    if not client or not client_full_name:
+                    client_full_name = (client and client.get("full_name")) or None
+                    client_email = (client and client.get("email")) or None
+                    if client_full_name:
+                        data["full_name"] = client_full_name
+                    if client_email:
+                        data["email"] = client_email
+                    conversation_state.set(number, "data", data)
+                    if not client_full_name:
                         conversation_state.set(number, "state", "SCHEDULING_ASK_NAME")
                         return ["Antes de seguirmos, poderia me informar seu nome completo?"]
                     conversation_state.set(number, "state", "SCHEDULING_PREF_PERIOD")
@@ -333,7 +349,7 @@ class Chatbot:
         if current == "SCHEDULING_CHOOSE_DATE":
             if message.lower() == "voltar":
                 conversation_state.set(number, "state", "FREE_CHAT")
-                return [greeting_text()]
+                return [greeting_text(number)]
             m = re.search(r"\b([1-5])\b", message)
             data = state.get("data", {})
             dates = data.get("dates", [])
@@ -360,6 +376,10 @@ class Chatbot:
             data["full_name"] = message
             conversation_state.set(number, "data", data)
             conversation_state.set(number, "state", "ASK_EMAIL")
+            try:
+                database.upsert_client(whatsapp_number=number, full_name=message)
+            except Exception:
+                pass
             return ["Perfeito. Qual Ã© o seu e-mail para contato?"]
 
         if current == "ASK_EMAIL":
@@ -369,6 +389,11 @@ class Chatbot:
                 return ["Poderia verificar o e-mail informado? Parece nÃ£o estar no formato correto. Ex: nome@dominio.com"]
             data["email"] = email
             conversation_state.set(number, "data", data)
+            # persist email junto ao cliente (merge)
+            try:
+                database.upsert_client(whatsapp_number=number, email=email)
+            except Exception:
+                pass
             conversation_state.set(number, "state", "ASK_SUMMARY")
             return ["Obrigado. Poderia descrever brevemente o seu caso, de forma objetiva?"]
 

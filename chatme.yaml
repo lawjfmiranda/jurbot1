@@ -1,0 +1,4 @@
+persist_client_fields:
+  - full_name
+  - email
+
