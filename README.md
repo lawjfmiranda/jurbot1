@@ -27,6 +27,7 @@ EVOLUTION_API_BASE_URL=https://evolution.yourdomain.com/api
 EVOLUTION_INSTANCE_ID=instance123
 EVOLUTION_API_KEY=your_api_key
 EVOLUTION_WEBHOOK_TOKEN=optional_shared_secret
+ADMIN_WHATSAPP=554499999999  # número admin com comandos: #pause [min], #resume, #status
 
 # Google
 GOOGLE_CALENDAR_ID=primary_or_calendar_id

@@ -3,6 +3,7 @@ import json
 import logging
 import uuid
 import contextvars
+import time
 from typing import Any, Dict, List, Optional
 
 from flask import Flask, jsonify, request
@@ -15,6 +16,7 @@ import scheduler as jobs_scheduler
 
 
 EVOLUTION_WEBHOOK_TOKEN = os.getenv("EVOLUTION_WEBHOOK_TOKEN")
+ADMIN_WHATSAPP = (os.getenv("ADMIN_WHATSAPP") or "").strip()
 
 
 app = Flask(__name__)
@@ -67,6 +69,37 @@ _request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("req_id", 
 # Rate limit simples em memória por número
 _last_seen: dict[str, float] = {}
 _MIN_INTERVAL_SECONDS = float(os.getenv("MIN_MSG_INTERVAL", "0.5"))
+# Pause control
+_bot_paused_until: float | None = None
+
+
+def _normalize_digits(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    import re as _re
+    digits = _re.sub(r"\D+", "", value)
+    return digits or None
+
+
+def _is_bot_paused_now() -> bool:
+    if _bot_paused_until is None:
+        return False
+    return time.time() < _bot_paused_until
+
+
+def _pause_bot(minutes: Optional[int]) -> str:
+    global _bot_paused_until
+    if minutes is None or minutes <= 0:
+        _bot_paused_until = float("inf")
+        return "Bot pausado por tempo indeterminado. Envie '#resume' para retomar."
+    _bot_paused_until = time.time() + (minutes * 60)
+    return f"Bot pausado por {minutes} minuto(s). Envie '#resume' para retomar."
+
+
+def _resume_bot() -> str:
+    global _bot_paused_until
+    _bot_paused_until = None
+    return "Bot retomado."
 
 
 def _extract_number(payload: Dict[str, Any]) -> Optional[str]:
@@ -229,14 +262,49 @@ def evolution_webhook():
             )
             continue
 
+        # Admin commands (#pause [min], #resume, #status)
+        if ADMIN_WHATSAPP and _normalize_digits(number) == _normalize_digits(ADMIN_WHATSAPP):
+            cmd = (text or "").strip().lower()
+            if cmd.startswith("#pause") or cmd.startswith("#pausa"):
+                parts = cmd.split()
+                minutes = None
+                if len(parts) >= 2:
+                    try:
+                        minutes = int(parts[1])
+                    except Exception:
+                        minutes = None
+                ack = _pause_bot(minutes)
+                try:
+                    whatsapp_service.send_whatsapp_message(number, ack)
+                except Exception:
+                    app.logger.exception("admin pause ack failed")
+                continue
+            if cmd.startswith("#resume") or cmd.startswith("#retomar") or cmd.startswith("#despausar"):
+                ack = _resume_bot()
+                try:
+                    whatsapp_service.send_whatsapp_message(number, ack)
+                except Exception:
+                    app.logger.exception("admin resume ack failed")
+                continue
+            if cmd.startswith("#status"):
+                status = "pausado" if _is_bot_paused_now() else "ativo"
+                try:
+                    whatsapp_service.send_whatsapp_message(number, f"Status do bot: {status}")
+                except Exception:
+                    pass
+                continue
+
         # rate limit
-        import time
         now_s = time.time()
         last = _last_seen.get(number, 0.0)
         if now_s - last < _MIN_INTERVAL_SECONDS:
             app.logger.debug(f"Rate limited number={number}")
             continue
         _last_seen[number] = now_s
+
+        if _is_bot_paused_now():
+            app.logger.info("Bot paused; ignoring message")
+            continue
 
         app.logger.info(
             f"Incoming idx={idx} number={number} text='{text[:120]}'",
