@@ -210,6 +210,11 @@ class Chatbot:
                             "Se desejar, posso verificar uma data anterior para tentar adiantar, ou podemos cancelar e reagendar.",
                             "Digite: 'adiantar' para procurar datas mais próximas, ou 'cancelar' para cancelar a atual.",
                         ]
+                    # Se não temos o nome, colete antes de seguir
+                    client = database.get_client_by_whatsapp(number)
+                    if not client or not client.get("full_name"):
+                        conversation_state.set(number, "state", "SCHEDULING_ASK_NAME")
+                        return ["Antes de seguirmos, poderia me informar seu nome completo?"]
                     conversation_state.set(number, "state", "SCHEDULING_PREF_PERIOD")
                     return [
                         "Perfeito! Para agilizar, você prefere ser atendido de manhã ou à tarde? (responda: manhã, tarde ou indiferente)",
@@ -253,6 +258,18 @@ class Chatbot:
                 lines.append(f"{idx}️⃣  {_weekday_pt_br(d)}, {d.strftime('%d/%m/%Y')}")
             lines.append("\nResponda com 1 a 5. Digite 'voltar' para o menu.")
             return ["\n".join(lines)]
+
+        if current == "SCHEDULING_ASK_NAME":
+            name = message.strip()
+            if len(name) < 3:
+                return ["Por favor, informe seu nome completo."]
+            database.upsert_client(whatsapp_number=number, full_name=name)
+            data["full_name"] = name
+            conversation_state.set(number, "data", data)
+            conversation_state.set(number, "state", "SCHEDULING_PREF_PERIOD")
+            return [
+                "Obrigado! Para agilizar, você prefere ser atendido de manhã ou à tarde? (responda: manhã, tarde ou indiferente)",
+            ]
 
         if current == "SCHEDULING_CHOOSE_DATE":
             if message.lower() == "voltar":
@@ -392,11 +409,20 @@ class Chatbot:
                     or data.get("full_name")
                     or number
                 )
+                # Build rich description
+                desc_lines = []
+                if data.get("case_summary"):
+                    desc_lines.append(f"Resumo: {data.get('case_summary')}")
+                desc_lines.append(f"WhatsApp: +{number}")
+                if data.get("email"):
+                    desc_lines.append(f"E-mail: {data.get('email')}")
+                description_value = "\n".join(desc_lines) if desc_lines else "Consulta inicial"
+
                 event_id = calendar_service.create_event(
                     title=f"Consulta Inicial - {full_name}",
                     start_datetime=start_dt,
                     end_datetime=end_dt,
-                    description=data.get("case_summary") or "Consulta inicial",
+                    description=description_value,
                     attendees=[data.get("email")] if data.get("email") else None,
                 )
                 # Persist meeting
