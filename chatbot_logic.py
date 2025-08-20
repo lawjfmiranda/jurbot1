@@ -4,6 +4,10 @@ import re
 from datetime import datetime, timedelta
 from threading import Lock
 from typing import Any, Dict, List, Optional
+try:
+    from zoneinfo import ZoneInfo
+except Exception:
+    ZoneInfo = None
 
 import database
 import calendar_service
@@ -220,8 +224,10 @@ class Chatbot:
                     if not rows:
                         return ["Você não possui consultas futuras registradas."]
                     items = []
+                    tz = ZoneInfo(os.getenv("TIMEZONE", "America/Sao_Paulo")) if ZoneInfo else None
                     for idx, r in enumerate(rows[:5], start=1):
-                        when = datetime.fromisoformat(str(r["meeting_datetime"]).replace("Z", "+00:00")).strftime("%d/%m/%Y %H:%M")
+                        dt_utc = datetime.fromisoformat(str(r["meeting_datetime"]).replace("Z", "+00:00"))
+                        when = dt_utc.astimezone(tz).strftime("%d/%m/%Y %H:%M") if tz else dt_utc.strftime("%d/%m/%Y %H:%M")
                         items.append(f"{idx}️⃣  {when}")
                     return ["Seus próximos agendamentos:\n" + "\n".join(items) + "\n\nPara cancelar, digite 'cancelar'."]
             # Fallback to menu
@@ -402,10 +408,12 @@ class Chatbot:
                     status="MARCADA",
                 )
                 conversation_state.clear(number)
+                tz = ZoneInfo(os.getenv("TIMEZONE", "America/Sao_Paulo")) if ZoneInfo else None
+                local_start = start_dt.astimezone(tz) if tz and start_dt.tzinfo else start_dt
                 confirm = (
                     "Perfeito! Sua consulta foi marcada.\n"
-                    f"Data e hora: {start_dt.strftime('%d/%m/%Y %H:%M')}\n"
-                    "VocÃª receberÃ¡ um lembrete 24 horas antes. Se precisar ajustar, Ã© sÃ³ me avisar."
+                    f"Data e hora: {local_start.strftime('%d/%m/%Y %H:%M')}\n"
+                    "Você receberá um lembrete 24 horas antes. Se precisar ajustar, é só me avisar."
                 )
                 return [confirm]
             else:
@@ -429,8 +437,10 @@ class Chatbot:
             if not rows:
                 return ["Não encontrei consultas futuras para este número. Digite 2 para agendar ou 'adiantar' para buscar datas mais próximas se já tiver uma consulta."]
             items = []
+            tz = ZoneInfo(os.getenv("TIMEZONE", "America/Sao_Paulo")) if ZoneInfo else None
             for idx, r in enumerate(rows[:5], start=1):
-                when = datetime.fromisoformat(str(r["meeting_datetime"]).replace("Z", "+00:00")).strftime("%d/%m/%Y %H:%M")
+                dt_utc = datetime.fromisoformat(str(r["meeting_datetime"]).replace("Z", "+00:00"))
+                when = dt_utc.astimezone(tz).strftime("%d/%m/%Y %H:%M") if tz else dt_utc.strftime("%d/%m/%Y %H:%M")
                 items.append(f"{idx}️⃣  {when}")
             conversation_state.set(number, "state", "CANCEL_CHOOSE")
             conversation_state.set(number, "data", {"cancel_rows": [dict(r) for r in rows[:5]]})
