@@ -43,7 +43,7 @@ class AIConversationManager:
         
         # Se está em processo de agendamento, continuar automaticamente
         current_state = state.get("state", "FREE")
-        if current_state in ["SCHED_NAME", "SCHED_PERIOD", "SCHED_DATE", "SCHED_TIME"]:
+        if current_state in ["SCHED_NAME", "SCHED_PERIOD", "SCHED_DATE", "SCHED_SLOT", "SCHED_TIME"]:
             self.logger.info(f"Continuing schedule flow in state: {current_state}")
             # Forçar intent=schedule para continuar fluxo
             decision = {"intent": "schedule", "action": "continue_schedule", "response": ""}
