@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  jurbot:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      # Volume persistente para o banco de dados
+      - jurbot_data:/app/data
+    environment:
+      - DB_PATH=/app/data/advocacia.db
+      - FAQ_PATH=/app/faq.json
+    env_file:
+      - .env
+    restart: unless-stopped
+
+volumes:
+  jurbot_data:
+    driver: local

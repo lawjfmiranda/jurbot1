@@ -112,11 +112,12 @@ REGRAS DE CLASSIFICAÇÃO:
 - Se ESTADO ATUAL = SCHED_NAME/SCHED_PERIOD/SCHED_DATE/SCHED_SLOT/SCHED_TIME: continue o fluxo de agendamento
 - Use "schedule" APENAS se cliente quer INICIAR novo agendamento E estado = FREE
 - Use "cancel" se cliente quer cancelar/desmarcar
-- Use "list_meetings" se cliente quer VER/CONSULTAR/VERIFICAR seus agendamentos existentes
+- Use "list_meetings" APENAS se cliente quer VER/CONSULTAR/VERIFICAR seus agendamentos existentes
 - Use "info" APENAS para informações do escritório (endereço, telefone, horário de funcionamento)
-- Use "small_talk" para perguntas sobre VALORES/PREÇOS/CUSTOS da consulta
+- Use "small_talk" para: perguntas sobre VALORES/PREÇOS/CUSTOS, despedidas, confirmações, agradecimentos
 - Use "legal" para dúvidas jurídicas específicas
 - NUNCA interrompa um processo de agendamento em andamento
+- Para respostas como "ok", "perfeito", "obrigado", "tchau" → use "small_talk"
 
 EXEMPLOS DE CLASSIFICAÇÃO:
   * "quando é minha consulta?" → list_meetings
@@ -200,7 +201,7 @@ Responda APENAS com JSON:
     
     def _handle_greeting(self, user_number: str, message: str, state: Dict,
                         client: Optional[Dict], decision: Dict) -> Dict[str, Any]:
-        """Saudação personalizada."""
+        """Saudação personalizada para clientes novos e recorrentes."""
         import json
         try:
             with open("faq.json", "r", encoding="utf-8") as f:
@@ -212,7 +213,16 @@ Responda APENAS com JSON:
         try:
             if client and client["full_name"]:
                 name = client["full_name"].split()[0]
-                greeting = base.replace("Olá!", f"Olá, {name}!")
+                
+                # Verificar se é cliente recorrente (tem consultas passadas)
+                try:
+                    past_meetings = database.get_meetings_by_client(client["id"])
+                    if past_meetings and len(past_meetings) > 0:
+                        greeting = f"Olá novamente, {name}! É um prazer ter você de volta ao JM ADVOGADOS."
+                    else:
+                        greeting = base.replace("Olá!", f"Olá, {name}!")
+                except:
+                    greeting = base.replace("Olá!", f"Olá, {name}!")
             else:
                 greeting = base
         except (KeyError, TypeError):

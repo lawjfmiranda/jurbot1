@@ -15,9 +15,13 @@ RUN pip install --upgrade pip && pip install -r /app/requirements.txt
 
 COPY . /app
 
+# Criar diretório para dados persistentes
+RUN mkdir -p /app/data
+
 # Default envs (override in EasyPanel)
 ENV PORT=8000 \
-    TIMEZONE=America/Sao_Paulo
+    TIMEZONE=America/Sao_Paulo \
+    DB_PATH=/app/data/advocacia.db
 
 EXPOSE 8000
 

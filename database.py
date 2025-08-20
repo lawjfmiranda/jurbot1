@@ -235,3 +235,13 @@ def list_meetings(whatsapp_number: str | None = None, start_from: datetime | Non
         return cur.fetchall()
 
 
+def get_meetings_by_client(client_id: int) -> list[sqlite3.Row]:
+    """Retorna todas as reuniões de um cliente específico."""
+    with get_connection() as conn:
+        cur = conn.execute(
+            "SELECT * FROM reunioes WHERE client_id = ? ORDER BY meeting_datetime DESC",
+            (client_id,)
+        )
+        return cur.fetchall()
+
+
