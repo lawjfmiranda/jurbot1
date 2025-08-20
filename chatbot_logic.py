@@ -448,32 +448,38 @@ class Chatbot:
                 description_value = "\n".join(desc_lines) if desc_lines else "Consulta inicial"
 
                 title_value = f"Consulta Inicial - {full_name} - +{number}"
-                if data.get("reschedule_event_id"):
-                    calendar_service.update_event(
-                        event_id=data["reschedule_event_id"],
-                        title=title_value,
-                        start_datetime=start_dt,
-                        end_datetime=end_dt,
-                        description=description_value,
-                        attendees=[data.get("email")] if data.get("email") else None,
-                    )
-                    database.update_meeting_time_by_event(data["reschedule_event_id"], start_dt)
-                else:
-                    event_id = calendar_service.create_event(
-                        title=title_value,
-                        start_datetime=start_dt,
-                        end_datetime=end_dt,
-                        description=description_value,
-                        attendees=[data.get("email")] if data.get("email") else None,
-                    )
-                    # Persist meeting
-                    client_id = (client and client["id"]) or data.get("client_id") or database.upsert_client(number)
-                    database.add_meeting(
-                        client_id=client_id,
-                        google_calendar_event_id=event_id,
-                        meeting_datetime=start_dt,
-                        status="MARCADA",
-                    )
+                try:
+                    if data.get("reschedule_event_id"):
+                        calendar_service.update_event(
+                            event_id=data["reschedule_event_id"],
+                            title=title_value,
+                            start_datetime=start_dt,
+                            end_datetime=end_dt,
+                            description=description_value,
+                            attendees=[data.get("email")] if data.get("email") else None,
+                        )
+                        database.update_meeting_time_by_event(data["reschedule_event_id"], start_dt)
+                    else:
+                        event_id = calendar_service.create_event(
+                            title=title_value,
+                            start_datetime=start_dt,
+                            end_datetime=end_dt,
+                            description=description_value,
+                            attendees=[data.get("email")] if data.get("email") else None,
+                        )
+                        # Persist meeting
+                        client_id = (client and client["id"]) or data.get("client_id") or database.upsert_client(number)
+                        database.add_meeting(
+                            client_id=client_id,
+                            google_calendar_event_id=event_id,
+                            meeting_datetime=start_dt,
+                            status="MARCADA",
+                        )
+                except Exception:
+                    # Informe falha e mantenha estado para tentar novamente
+                    return [
+                        "Tivemos um problema ao confirmar no calendário agora. Já estamos cientes e vamos ajustar. Você pode tentar novamente escolhendo 1, 2 ou 3, ou digitar 'voltar' para retornar ao menu.",
+                    ]
                 conversation_state.clear(number)
                 tz = ZoneInfo(os.getenv("TIMEZONE", "America/Sao_Paulo")) if ZoneInfo else None
                 local_start = start_dt.astimezone(tz) if tz and start_dt.tzinfo else start_dt

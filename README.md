@@ -41,6 +41,9 @@ SMTP_USER=your_user
 SMTP_PASS=your_pass
 EMAIL_FROM=bot@yourdomain.com
 EMAIL_TO=suporte@yourdomain.com
+# Calendar (opcional)
+# Para evitar erro 403 com contas de serviço sem delegação ampla, não convidamos participantes por padrão
+CALENDAR_ALLOW_ATTENDEES=0
 
 # IA (Gemini)
 GEMINI_API_KEY=your_gemini_api_key

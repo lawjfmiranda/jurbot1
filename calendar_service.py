@@ -19,6 +19,7 @@ SERVICE_ACCOUNT_JSON = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
 TIMEZONE = os.getenv("TIMEZONE", "America/Sao_Paulo")
 BUSINESS_START_HOUR = int(os.getenv("BUSINESS_START_HOUR", "9"))
 BUSINESS_END_HOUR = int(os.getenv("BUSINESS_END_HOUR", "18"))
+CALENDAR_ALLOW_ATTENDEES = os.getenv("CALENDAR_ALLOW_ATTENDEES", "0").strip() in ("1", "true", "True")
 
 
 logger = logging.getLogger(__name__)
@@ -162,10 +163,15 @@ def create_event(title: str, start_datetime: datetime, end_datetime: datetime, d
         "start": {"dateTime": _rfc3339(start_datetime), "timeZone": TIMEZONE},
         "end": {"dateTime": _rfc3339(end_datetime), "timeZone": TIMEZONE},
     }
+    send_updates = "none"
     if attendees:
-        event_body["attendees"] = [{"email": e} for e in attendees if e]
+        if CALENDAR_ALLOW_ATTENDEES:
+            event_body["attendees"] = [{"email": e} for e in attendees if e]
+            send_updates = "all"
+        else:
+            logger.warning("calendar.create_event: attendees suppressed (CALENDAR_ALLOW_ATTENDEES disabled)")
     logger.info("calendar.create_event", extra={"title": title, "start": event_body["start"]["dateTime"], "end": event_body["end"]["dateTime"]})
-    created = service.events().insert(calendarId=CALENDAR_ID, body=event_body, sendUpdates="all").execute()
+    created = service.events().insert(calendarId=CALENDAR_ID, body=event_body, sendUpdates=send_updates).execute()
     return created.get("id")
 
 
@@ -233,11 +239,16 @@ def update_event(event_id: str, title: Optional[str] = None, start_datetime: Opt
     if end_datetime is not None:
         body.setdefault("end", {})["dateTime"] = _rfc3339(end_datetime)
         body.setdefault("end", {})["timeZone"] = TIMEZONE
+    send_updates = "none"
     if attendees is not None:
-        body["attendees"] = [{"email": e} for e in attendees if e]
+        if CALENDAR_ALLOW_ATTENDEES:
+            body["attendees"] = [{"email": e} for e in attendees if e]
+            send_updates = "all"
+        else:
+            logger.warning("calendar.update_event: attendees suppressed (CALENDAR_ALLOW_ATTENDEES disabled)")
     if not body:
         return
     logger.info("calendar.update_event", extra={"event_id": event_id, "has_title": "summary" in body, "has_times": bool(body.get("start")) or bool(body.get("end"))})
-    service.events().patch(calendarId=CALENDAR_ID, eventId=event_id, body=body, sendUpdates="all").execute()
+    service.events().patch(calendarId=CALENDAR_ID, eventId=event_id, body=body, sendUpdates=send_updates).execute()
 
 
