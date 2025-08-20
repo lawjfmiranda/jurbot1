@@ -39,10 +39,18 @@ class AIConversationManager:
         # Buscar contexto do cliente
         client = database.get_client_by_whatsapp(user_number)
         context = self._build_context(user_number, client, state)
+        self.logger.info(f"Context for {user_number}: {context[:200]}...")
         
-        # IA decide ação e resposta
-        decision = self._ai_decide(message, context)
-        self.logger.info(f"AI Decision: {decision} for message: '{message[:50]}...'")
+        # Se está em processo de agendamento, continuar automaticamente
+        current_state = state.get("state", "FREE")
+        if current_state in ["SCHED_NAME", "SCHED_PERIOD", "SCHED_DATE", "SCHED_TIME"]:
+            self.logger.info(f"Continuing schedule flow in state: {current_state}")
+            # Forçar intent=schedule para continuar fluxo
+            decision = {"intent": "schedule", "action": "continue_schedule", "response": ""}
+        else:
+            # IA decide ação e resposta
+            decision = self._ai_decide(message, context)
+            self.logger.info(f"AI Decision: {decision} for message: '{message[:50]}...'")
         
         # Executar ação determinística se necessário
         result = self._execute(decision, user_number, message, state, client)
@@ -74,12 +82,15 @@ class AIConversationManager:
         except:
             pass
         
-        # Estado atual
+        # Estado atual da conversa (CRÍTICO para IA!)
         current = state.get("state", "FREE")
-        if current != "FREE":
-            parts.append(f"Estado: {current}")
-        
         data = state.get("data", {})
+        
+        if current != "FREE":
+            parts.append(f"ESTADO ATUAL: {current}")
+            if data:
+                parts.append(f"Dados em progresso: {data}")
+        
         if data.get("slots"):
             parts.append(f"Slots disponíveis: {len(data['slots'])}")
         
@@ -98,12 +109,13 @@ MENSAGEM DO CLIENTE:
 
 REGRAS IMPORTANTES:
 - Use "greeting" APENAS se for a PRIMEIRA mensagem do cliente (saudação inicial)
-- Use "schedule" se cliente quer agendar/marcar consulta
+- Se ESTADO ATUAL = SCHED_NAME/SCHED_PERIOD/SCHED_DATE/SCHED_TIME: continue o fluxo de agendamento
+- Use "schedule" APENAS se cliente quer INICIAR novo agendamento E estado = FREE
 - Use "cancel" se cliente quer cancelar/desmarcar
 - Use "legal" para dúvidas jurídicas
 - Use "small_talk" para conversas casuais ou continuação de conversa
-- Se o cliente já tem nome no contexto, NÃO peça novamente
-- Se já está em processo de agendamento, continue o fluxo
+- NUNCA interrompa um processo de agendamento em andamento
+- Se já coletando dados (nome, período, etc), continue coletando
 
 Responda APENAS com JSON:
 {{
@@ -219,9 +231,12 @@ Responda APENAS com JSON:
         # Fluxo de agendamento natural
         if current == "FREE":
             # Iniciar agendamento
+            self.logger.info(f"Schedule start: client={client}, has_name={bool(client and client.get('full_name') if client else False)}")
+            
             try:
-                if client and client["full_name"]:
+                if client and client["full_name"] and client["full_name"].strip():
                     data["full_name"] = client["full_name"]
+                    self.logger.info(f"Using existing name: {client['full_name']}")
                     return {
                         "replies": [
                             f"Ótimo, {client['full_name'].split()[0]}!",
@@ -229,10 +244,12 @@ Responda APENAS com JSON:
                         ],
                         "new_state": {"state": "SCHED_PERIOD", "data": data}
                     }
-            except (KeyError, TypeError):
+            except (KeyError, TypeError) as e:
+                self.logger.info(f"No existing name found: {e}")
                 pass
             
             # Se não tem nome, pedir nome
+            self.logger.info("Requesting name for new schedule")
             return {
                 "replies": ["Vamos agendar! Primeiro, qual seu nome completo?"],
                 "new_state": {"state": "SCHED_NAME", "data": data}
@@ -241,12 +258,21 @@ Responda APENAS com JSON:
         elif current == "SCHED_NAME":
             # Coletar nome
             name = message.strip()
+            self.logger.info(f"Collecting name: '{name}' for user {user_number}")
+            
             if len(name) < 3:
                 return {
                     "replies": ["Por favor, me diga seu nome completo."],
                     "new_state": state
                 }
-            database.upsert_client(whatsapp_number=user_number, full_name=name)
+            
+            # Salvar nome no banco
+            try:
+                database.upsert_client(whatsapp_number=user_number, full_name=name)
+                self.logger.info(f"Name saved to DB: {name} for {user_number}")
+            except Exception as e:
+                self.logger.error(f"Error saving name to DB: {e}")
+            
             data["full_name"] = name
             return {
                 "replies": [f"Prazer, {name.split()[0]}! Prefere manhã, tarde ou qualquer horário?"],
