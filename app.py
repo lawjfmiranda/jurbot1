@@ -13,6 +13,10 @@ import database
 from chatbot_logic import Chatbot
 import whatsapp_service
 import scheduler as jobs_scheduler
+from utils.validators import InputValidator, validate_webhook_payload, sanitize_search_query
+from utils.secure_logging import log_webhook_safely, mask_sensitive_data
+from utils.rate_limiter import create_rate_limiter
+from utils.metrics import metrics, health_checker, track_time, track_counter
 
 
 EVOLUTION_WEBHOOK_TOKEN = os.getenv("EVOLUTION_WEBHOOK_TOKEN")
@@ -66,8 +70,8 @@ _install_req_id_formatter()
 # Context var para req_id
 _request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("req_id", default="-")
 
-# Rate limit simples em memória por número
-_last_seen: dict[str, float] = {}
+# Rate limiter robusto e persistente
+_rate_limiter = None
 _MIN_INTERVAL_SECONDS = float(os.getenv("MIN_MSG_INTERVAL", "0.5"))
 # Pause control
 _bot_paused_until: float | None = None
@@ -180,8 +184,82 @@ def _extract_text(payload: Dict[str, Any]) -> Optional[str]:
 
 
 @app.route("/health", methods=["GET"])  # Simple healthcheck
+@track_counter("health_check")
 def health():
-    return jsonify({"status": "ok"})
+    """Health check básico."""
+    return jsonify({
+        "status": "ok",
+        "timestamp": time.time(),
+        "uptime": time.time() - metrics.start_time
+    })
+
+
+@app.route("/health/detailed", methods=["GET"])
+def health_detailed():
+    """Health check detalhado com verificação de serviços."""
+    # Verificar token admin se configurado
+    admin_token = os.getenv("ADMIN_TOKEN")
+    if admin_token:
+        token = request.headers.get("X-Admin-Token") or request.args.get("token")
+        if token != admin_token:
+            return jsonify({"error": "unauthorized"}), 401
+    
+    try:
+        service_health = health_checker.check_all_services()
+        
+        # Determinar status geral
+        overall_status = "healthy"
+        for service, health in service_health.items():
+            if health["status"] == "unhealthy":
+                overall_status = "unhealthy"
+                break
+            elif health["status"] == "degraded" and overall_status == "healthy":
+                overall_status = "degraded"
+        
+        response = {
+            "status": overall_status,
+            "timestamp": time.time(),
+            "uptime": time.time() - metrics.start_time,
+            "services": service_health
+        }
+        
+        status_code = 200 if overall_status == "healthy" else 503
+        return jsonify(response), status_code
+        
+    except Exception as e:
+        app.logger.exception("Erro no health check detalhado")
+        return jsonify({
+            "status": "unhealthy",
+            "error": str(e),
+            "timestamp": time.time()
+        }), 503
+
+
+@app.route("/metrics", methods=["GET"])
+def get_metrics():
+    """Endpoint de métricas para monitoramento."""
+    # Verificar token admin se configurado
+    admin_token = os.getenv("ADMIN_TOKEN")
+    if admin_token:
+        token = request.headers.get("X-Admin-Token") or request.args.get("token")
+        if token != admin_token:
+            return jsonify({"error": "unauthorized"}), 401
+    
+    try:
+        summary = metrics.get_metrics_summary()
+        
+        # Adicionar métricas específicas do rate limiter
+        if _rate_limiter and hasattr(_rate_limiter, 'get_stats'):
+            # Adicionar estatísticas do rate limiter se disponível
+            summary["rate_limiter"] = {"enabled": True}
+        else:
+            summary["rate_limiter"] = {"enabled": False}
+        
+        return jsonify(summary)
+        
+    except Exception as e:
+        app.logger.exception("Erro ao obter métricas")
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/debug/echo", methods=["GET", "POST"])
@@ -208,6 +286,7 @@ def debug_echo():
 
 
 @app.route("/webhook/evolution", methods=["POST"])
+@track_time("webhook_processing")
 def evolution_webhook():
     # correlation id por requisição
     req_id = request.headers.get("X-Req-Id") or str(uuid.uuid4())
@@ -241,9 +320,20 @@ def evolution_webhook():
         messages = [body]
 
     app.logger.info(f"Webhook messages_count={len(messages)}")
+    
+    # Métricas
+    metrics.increment("webhook_requests")
+    metrics.increment("webhook_messages", len(messages))
+    
     for idx, msg in enumerate(messages):
-        # Log EVERY message attempt with full details
-        app.logger.info(f"Raw message {idx}: {json.dumps(msg, indent=2)[:500]}...")
+        # Log webhook payload de forma segura (dados sensíveis mascarados)
+        log_webhook_safely(msg, app.logger, logging.INFO)
+        
+        # Validar estrutura básica do payload
+        if not validate_webhook_payload(msg):
+            app.logger.warning(f"Webhook payload inválido idx={idx}")
+            continue
+        
         # Ignore messages sent by our own instance (status updates, echoes)
         own = msg.get("fromMe") or msg.get("from_me")
         if own is None and isinstance(msg.get("data"), dict):
@@ -259,21 +349,25 @@ def evolution_webhook():
         app.logger.info(f"Processing message: event='{event_type}', number='{number}', text='{text}' (len={len(text) if text else 0})")
         
         if not number or not text:
-            short = None
+            # Log de forma segura sem expor dados sensíveis
+            safe_msg = mask_sensitive_data(msg)
             try:
-                short = json.dumps(msg)[:300]
+                short = json.dumps(safe_msg, ensure_ascii=False)[:300]
             except Exception:
-                short = str(msg)[:300]
+                short = str(safe_msg)[:300]
             app.logger.info(
-                f"Skipped msg idx={idx} number={number} text_len={(len(text) if text else 0)} payload={short}",
+                f"Skipped msg idx={idx} number={'***' if number else None} text_len={(len(text) if text else 0)} payload={short}",
             )
             continue
 
         # Admin commands (#pause [min], #resume, #status)
-        app.logger.info(f"Checking admin: ADMIN_WHATSAPP='{ADMIN_WHATSAPP}', number='{number}', normalized_admin='{_normalize_digits(ADMIN_WHATSAPP)}', normalized_number='{_normalize_digits(number)}'")
+        # Log admin check sem expor números completos
+        admin_masked = f"{ADMIN_WHATSAPP[:2]}***{ADMIN_WHATSAPP[-2:]}" if ADMIN_WHATSAPP else "None"
+        number_masked = f"{number[:2]}***{number[-2:]}" if number else "None"
+        app.logger.info(f"Checking admin: ADMIN_WHATSAPP='{admin_masked}', number='{number_masked}'")
         
         if ADMIN_WHATSAPP and _normalize_digits(number) == _normalize_digits(ADMIN_WHATSAPP):
-            app.logger.info(f"Admin command detected from {number}: '{text}'")
+            app.logger.info(f"Admin command detected from {number_masked}: '{text}'")
             cmd = (text or "").strip().lower()
             if cmd.startswith("#pause") or cmd.startswith("#pausa"):
                 parts = cmd.split()
@@ -313,28 +407,57 @@ def evolution_webhook():
                     app.logger.exception("admin status ack failed")
                 continue
 
-        # rate limit
-        now_s = time.time()
-        last = _last_seen.get(number, 0.0)
-        if now_s - last < _MIN_INTERVAL_SECONDS:
-            app.logger.debug(f"Rate limited number={number}")
-            continue
-        _last_seen[number] = now_s
+        # Rate limiting robusto
+        if _rate_limiter:
+            allowed, info = _rate_limiter.is_allowed(
+                identifier=number,
+                max_requests=int(os.getenv("MAX_REQUESTS_PER_MINUTE", "20")),
+                window_seconds=60,
+                block_duration=int(os.getenv("RATE_LIMIT_BLOCK_DURATION", "300"))  # 5 min
+            )
+            
+            if not allowed:
+                reason = info.get("reason", "rate_limited")
+                if reason == "blocked":
+                    app.logger.warning(f"User {number_masked} is blocked for {info.get('remaining_seconds')}s")
+                elif reason == "rate_limited":
+                    app.logger.warning(f"Rate limit exceeded for {number_masked}: {info.get('requests_in_window')}/{info.get('max_requests')}")
+                continue
+            
+            # Log para debug (apenas em desenvolvimento)
+            if os.getenv("FLASK_ENV") == "development":
+                app.logger.debug(f"Rate limit check for {number_masked}: {info.get('requests_in_window')}/{info.get('max_requests')}")
 
         if _is_bot_paused_now():
             app.logger.info("Bot paused; ignoring message")
             continue
 
         app.logger.info(
-            f"Incoming idx={idx} number={number} text='{text[:120]}'",
+            f"Incoming idx={idx} number={number_masked} text='{text[:120]}'",
         )
+        
+        # Métricas
+        metrics.increment("messages_processed")
+        metrics.record_event("messages_processed")
+        
         try:
+            start_time = time.time()
             responses = chatbot.handle_incoming_message(number, text)
+            processing_time = time.time() - start_time
+            
+            # Métricas de sucesso
+            metrics.record_time("chatbot_processing", processing_time)
+            metrics.increment("chatbot_success")
+            
         except Exception as e:
             app.logger.exception("Error in chatbot logic")
+            
+            # Métricas de erro
+            metrics.increment("chatbot_errors")
+            
             try:
                 import notification_service
-                notification_service.notify_error("Erro no webhook JustIA", f"Number: {number}\nError: {e}")
+                notification_service.notify_error("Erro no webhook JustIA", f"Number: {number_masked}\nError: {e}")
             except Exception:
                 pass
             continue
@@ -342,10 +465,15 @@ def evolution_webhook():
             try:
                 whatsapp_service.send_whatsapp_message(number, r)
                 app.logger.info(
-                    f"Sent reply to {number}: '{r[:120]}'",
+                    f"Sent reply to {number_masked}: '{r[:120]}'",
                 )
+                
+                # Métricas de envio
+                metrics.increment("whatsapp_messages_sent")
+                
             except Exception:
-                app.logger.exception(f"Failed to send WhatsApp message to {number}")
+                app.logger.exception(f"Failed to send WhatsApp message to {number_masked}")
+                metrics.increment("whatsapp_send_errors")
 
     try:
         return jsonify({"status": "received"})
@@ -362,18 +490,29 @@ def admin_clients():
     token = request.headers.get("X-Admin-Token") or request.args.get("token")
     if token != os.getenv("ADMIN_TOKEN"):
         return jsonify({"error": "unauthorized"}), 401
+    
+    # Sanitizar query de busca
     q = request.args.get("q")
-    rows = database.list_clients(q)
-    return jsonify([
-        {
-            "id": r["id"],
-            "whatsapp_number": r["whatsapp_number"],
-            "full_name": r["full_name"],
-            "email": r["email"],
-            "lead_priority": r["lead_priority"],
-            "created_at": r["creation_timestamp"],
-        } for r in rows
-    ])
+    if q:
+        q = sanitize_search_query(q)
+        if not q:  # Se sanitização resultou em string vazia
+            return jsonify({"error": "invalid search query"}), 400
+    
+    try:
+        rows = database.list_clients(q)
+        return jsonify([
+            {
+                "id": r["id"],
+                "whatsapp_number": f"{r['whatsapp_number'][:2]}***{r['whatsapp_number'][-2:]}" if r["whatsapp_number"] else None,  # Mascarar número
+                "full_name": r["full_name"],
+                "email": f"{r['email'][0]}***@{r['email'].split('@')[1]}" if r["email"] and '@' in r["email"] else r["email"],  # Mascarar email
+                "lead_priority": r["lead_priority"],
+                "created_at": r["creation_timestamp"],
+            } for r in rows
+        ])
+    except Exception as e:
+        app.logger.error(f"Erro ao listar clientes: {e}")
+        return jsonify({"error": "internal server error"}), 500
 
 
 @app.route("/admin/meetings", methods=["GET"])
@@ -395,8 +534,19 @@ def admin_meetings():
     ])
 
 def create_app() -> Flask:
+    global _rate_limiter
+    
     load_dotenv()
     database.initialize_database()
+    
+    # Inicializar rate limiter robusto
+    try:
+        db_path = os.getenv("DB_PATH", os.path.join(os.path.dirname(__file__), "advocacia.db"))
+        _rate_limiter = create_rate_limiter(db_path)
+        app.logger.info("Rate limiter inicializado com sucesso")
+    except Exception as e:
+        app.logger.error(f"Erro ao inicializar rate limiter: {e}")
+    
     # Start scheduler background jobs
     jobs_scheduler.start_scheduler()
     return app

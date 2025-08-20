@@ -2,6 +2,14 @@
 
 Projeto Flask com integrações ao WhatsApp (Evolution API), Google Calendar e SQLite.
 
+## 🔒 **MELHORIAS DE SEGURANÇA IMPLEMENTADAS**
+- **Proteção contra SQL Injection** em consultas do banco
+- **Validação e sanitização** completa de inputs
+- **Rate limiting robusto** e persistente
+- **Logs seguros** com mascaramento de dados sensíveis
+- **Sistema de configuração** centralizado com validação
+- **Métricas e monitoramento** básico
+
 ## Estrutura
 - `app.py`: inicialização Flask, endpoint webhook `/webhook/evolution`, healthcheck, scheduler.
 - `chatbot_logic.py`: lógica conversacional, qualificação de leads, agendamento, estados.
@@ -11,7 +19,13 @@ Projeto Flask com integrações ao WhatsApp (Evolution API), Google Calendar e S
 - `notification_service.py`: notificação interna (webhook ou SMTP).
 - `scheduler.py`: lembretes e follow-ups.
 - `faq.json`: conteúdo editável de FAQs, com saudação, bio, áreas e informações do escritório (JM ADVOGADOS).
- - `ai_service.py`: integração com IA (Gemini) para intenção e respostas informativas.
+- `ai_service.py`: integração com IA (Gemini) para intenção e respostas informativas.
+- `config.py`: sistema de configuração centralizado com validação.
+- **`utils/`**: utilitários de segurança e monitoramento
+  - `validators.py`: validação e sanitização de inputs
+  - `secure_logging.py`: logs seguros com mascaramento
+  - `rate_limiter.py`: rate limiting robusto e persistente
+  - `metrics.py`: sistema de métricas e health checks
 
 ## Variáveis de Ambiente
 Crie um arquivo `.env` na raiz do projeto com:
@@ -50,6 +64,14 @@ CALENDAR_ALLOW_ATTENDEES=0
 GEMINI_API_KEY=your_gemini_api_key
 GEMINI_MODEL=gemini-1.5-flash
 GEMINI_MODEL_QUALITY=gemini-1.5-pro
+
+# Segurança e Rate Limiting
+MAX_REQUESTS_PER_MINUTE=20
+RATE_LIMIT_BLOCK_DURATION=300
+MASK_SENSITIVE_DATA=1
+
+# Monitoramento (opcional)
+ADMIN_TOKEN=your_secret_admin_token
 ```
 
 ## Instalação
@@ -77,8 +99,40 @@ curl --request POST \
 }'
 ```
 
+## 📊 **Novos Endpoints de Monitoramento**
+
+### Health Checks
+- `GET /health` - Health check básico
+- `GET /health/detailed` - Health check detalhado com status de todos os serviços
+- `GET /metrics` - Métricas completas do sistema (requer ADMIN_TOKEN)
+
+### Exemplo de Resposta de Métricas:
+```json
+{
+  "timestamp": "2025-01-20T12:00:00",
+  "uptime_seconds": 3600,
+  "counters": {
+    "webhook_requests": 150,
+    "messages_processed": 142,
+    "chatbot_success": 140,
+    "chatbot_errors": 2
+  },
+  "rates": {
+    "messages_processed_per_minute": 2.3
+  },
+  "service_health": {
+    "database": {"status": "healthy"},
+    "evolution_api": {"status": "healthy"},
+    "google_calendar": {"status": "healthy"}
+  }
+}
+```
+
 ## Observações
 - Datas são persistidas em UTC no banco.
 - Slots de agenda consideram dias úteis (9h–18h) e verificam free/busy.
 - Lembretes são enviados 24h antes; follow-up é enviado diariamente às 09:00.
 - Se `GEMINI_API_KEY` não estiver definido, o chatbot usa heurísticas simples; com a chave, ativa respostas de IA com limite de extensão e disclaimers.
+- **Rate limiting**: 20 requests/minuto por usuário (configurável)
+- **Dados sensíveis**: Automaticamente mascarados nos logs
+- **Validação**: Todos os inputs são sanitizados contra ataques

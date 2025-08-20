@@ -197,11 +197,14 @@ def update_meeting_time_by_event(event_id: str, new_datetime: datetime) -> None:
 
 
 def list_clients(search: str | None = None, limit: int = 100) -> list[sqlite3.Row]:
+    """Lista clientes com busca segura contra SQL injection."""
     with get_connection() as conn:
         if search:
-            like = f"%{search}%"
+            # Sanitizar input para prevenir SQL injection
+            sanitized_search = search.replace('%', '\\%').replace('_', '\\_').replace('[', '\\[')
+            like = f"%{sanitized_search}%"
             cur = conn.execute(
-                "SELECT * FROM clientes WHERE whatsapp_number LIKE ? OR full_name LIKE ? OR email LIKE ? ORDER BY creation_timestamp DESC LIMIT ?",
+                "SELECT * FROM clientes WHERE (whatsapp_number LIKE ? ESCAPE '\\' OR full_name LIKE ? ESCAPE '\\' OR email LIKE ? ESCAPE '\\') ORDER BY creation_timestamp DESC LIMIT ?",
                 (like, like, like, limit),
             )
         else:
