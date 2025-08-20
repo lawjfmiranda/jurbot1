@@ -70,7 +70,11 @@ def extract_intent(user_text: str) -> dict:
         # fallback heurístico simples
         t = user_text.lower()
         logger.warning("ai_service.extract_intent: fallback heuristics")
-        if any(k in t for k in ["duvida", "dúvida", "ajuda", "caso", "processo", "problema", "orienta", "consulta"]):
+        if any(k in t for k in [
+            "duvida", "dúvida", "ajuda", "caso", "processo", "problema", "orienta", "consulta",
+            "multa", "carro", "veiculo", "veículo", "transferir", "ipva", "detran", "cnh",
+            "guarda", "pensao", "pensão", "inventar", "inventário", "inventario"
+        ]):
             return {"intent": "duvida_juridica", "confidence": 0.7}
         if any(k in t for k in ["cancelar", "desmarcar"]):
             return {"intent": "cancelar", "confidence": 0.8}

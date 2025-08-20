@@ -14,7 +14,6 @@ import database
 import calendar_service
 import notification_service
 import ai_service
-import ai_service
 
 
 FAQ_PATH = os.getenv("FAQ_PATH", os.path.join(os.path.dirname(__file__), "faq.json"))
@@ -79,6 +78,10 @@ def build_menu() -> str:
         "4️⃣  Meus agendamentos"
     )
     return menu
+
+
+def greeting_text() -> str:
+    return FAQ.get("boas_vindas", WELCOME_FALLBACK)
 
 
 HELP_KEYWORDS = [
@@ -204,8 +207,35 @@ class Chatbot:
                     reply += "\n\nSe quiser, posso te ajudar a agendar uma consulta. Digite 2."
                     return [reply]
             if intent in ("GREET", "UNKNOWN"):
+                conversation_state.set(number, "state", "FREE_CHAT")
+                return [greeting_text()]
+
+        if current == "FREE_CHAT":
+            # Comandos rápidos
+            if contains_any(message, ["menu"]):
                 conversation_state.set(number, "state", "MENU")
                 return [build_menu()]
+            if contains_any(message, ["cancelar", "desmarcar", "remarcar"]):
+                conversation_state.set(number, "state", "CANCEL_LOOKUP")
+                return ["Certo, vamos cancelar sua consulta. Informe a data (dd/mm/aaaa) ou digite 'todas' para listar as próximas do seu número."]
+            # Opções 1-4 funcionam aqui também
+            m = re.search(r"\b([1-4])\b", message)
+            if m:
+                conversation_state.set(number, "state", "MENU")
+                return self.handle_incoming_message(number, m.group(1))
+            # IA como padrão
+            if len(message) >= 8:
+                try:
+                    ai = ai_service.extract_intent(message)
+                except Exception:
+                    ai = {"intent": None}
+                if ai.get("intent") == "duvida_juridica" and ai.get("confidence", 0) >= 0.5:
+                    area = ai.get("area") or "Direito do Trabalho"
+                    reply = ai_service.legal_answer(area, message)
+                    reply += "\n\nSe quiser, posso te ajudar a agendar uma consulta. Digite 2."
+                    return [reply]
+            # Se nada foi entendido, sugerir menu
+            return [ai_service.small_talk_reply("Posso te ajudar com alguma dúvida ou agendar uma consulta. Se preferir, digite 'menu'.")]
 
         if current == "MENU":
             intent = detect_intent(message)
@@ -302,8 +332,8 @@ class Chatbot:
 
         if current == "SCHEDULING_CHOOSE_DATE":
             if message.lower() == "voltar":
-                conversation_state.set(number, "state", "MENU")
-                return [build_menu()]
+                conversation_state.set(number, "state", "FREE_CHAT")
+                return [greeting_text()]
             m = re.search(r"\b([1-5])\b", message)
             data = state.get("data", {})
             dates = data.get("dates", [])
@@ -480,7 +510,9 @@ class Chatbot:
                     return [
                         "Tivemos um problema ao confirmar no calendário agora. Já estamos cientes e vamos ajustar. Você pode tentar novamente escolhendo 1, 2 ou 3, ou digitar 'voltar' para retornar ao menu.",
                     ]
-                conversation_state.clear(number)
+                # Após confirmar, volta para conversa livre
+                conversation_state.set(number, "state", "FREE_CHAT")
+                conversation_state.set(number, "data", {})
                 tz = ZoneInfo(os.getenv("TIMEZONE", "America/Sao_Paulo")) if ZoneInfo else None
                 local_start = start_dt.astimezone(tz) if tz and start_dt.tzinfo else start_dt
                 confirm = (
@@ -488,7 +520,9 @@ class Chatbot:
                     f"Data e hora: {local_start.strftime('%d/%m/%Y %H:%M')}\n"
                     "Você receberá um lembrete 24 horas antes. Se precisar ajustar, é só me avisar."
                 )
-                return [ai_service.small_talk_reply(confirm)]
+                confirm = ai_service.small_talk_reply(confirm)
+                follow = ai_service.small_talk_reply("Posso te ajudar com mais alguma dúvida? Se quiser ver opções novamente, digite 'menu'.")
+                return [confirm, follow]
             else:
                 return ["NÃ£o entendi sua escolha. Responda com 1, 2 ou 3 para selecionar um horÃ¡rio."]
 
@@ -540,8 +574,8 @@ class Chatbot:
             conversation_state.clear(number)
             return ["Consulta cancelada com sucesso. Se desejar, podemos agendar outro horário. Digite 2 para ver opções."]
 
-        # Default fallback
-        conversation_state.set(number, "state", "MENU")
-        return [build_menu()]
+        # Default fallback: mantém conversa natural
+        conversation_state.set(number, "state", "FREE_CHAT")
+        return [greeting_text()]
 
 
