@@ -228,6 +228,34 @@ class Chatbot:
             if contains_any(message, ["cancelar", "desmarcar", "remarcar"]):
                 conversation_state.set(number, "state", "CANCEL_LOOKUP")
                 return ["Certo, vamos cancelar sua consulta. Informe a data (dd/mm/aaaa) ou digite 'todas' para listar as próximas do seu número."]
+            # Iniciar agendamento por linguagem natural
+            if contains_any(message, ["agendar", "marcar", "agendamento", "consulta", "quero consulta", "quero agendar", "agende", "agenda"]):
+                # Verifica se já há consulta futura para este número
+                existing = [r for r in database.get_future_meetings(datetime.utcnow()) if r["whatsapp_number"] == number]
+                if existing:
+                    when = datetime.fromisoformat(str(existing[0]["meeting_datetime"]).replace("Z", "+00:00")).strftime("%d/%m/%Y %H:%M")
+                    return [
+                        f"Você já possui uma consulta marcada para {when}.",
+                        "Se desejar, posso verificar uma data anterior para tentar adiantar, ou podemos cancelar e reagendar.",
+                        "Digite: 'adiantar' para procurar datas mais próximas, ou 'cancelar' para cancelar a atual.",
+                    ]
+                # Reusar dados do cliente quando existirem
+                client = database.get_client_by_whatsapp(number)
+                client_full_name = (client["full_name"] if client is not None else None)
+                client_email = (client["email"] if client is not None else None)
+                if client_full_name:
+                    data["full_name"] = client_full_name
+                if client_email:
+                    data["email"] = client_email
+                conversation_state.set(number, "data", data)
+                if not client_full_name:
+                    conversation_state.set(number, "state", "SCHEDULING_ASK_NAME")
+                    return ["Perfeito! Antes de seguir, poderia me informar seu nome completo?"]
+                conversation_state.set(number, "state", "SCHEDULING_PREF_PERIOD")
+                return [
+                    "Ótimo! Para agilizar, você prefere ser atendido de manhã ou à tarde? (responda: manhã, tarde ou indiferente)",
+                    "Se desejar, responda 'voltar' para retornar ao menu."
+                ]
             # Opções 1-4 funcionam aqui também
             m = re.search(r"\b([1-4])\b", message)
             if m:
@@ -244,12 +272,14 @@ class Chatbot:
                     reply = ai_service.legal_answer(area, message)
                     reply += "\n\nSe quiser, posso te ajudar a agendar uma consulta. Digite 2."
                     return [reply]
-            # Se não classificou como jurídica, ainda assim ofereça ajuda informativa de forma genérica
+            # Se não classificou como jurídica, responda com pequena ajuda conversacional (sem disclaimer)
             if re.search(r"[a-zA-Zá-úÁ-Ú]", message):
-                area = ai_service.guess_area(message) or "Responsabilidade Civil"
-                reply = ai_service.legal_answer(area, message)
-                reply += "\n\nSe preferir ver opções, digite 'menu'."
-                return [reply]
+                friendly = ai_service.small_talk_reply(
+                    "Posso te ajudar com isso. Se quiser, também posso agendar uma consulta para conversarmos com mais calma. Diga 'quero agendar'.",
+                    user_text=message,
+                    max_chars=240,
+                )
+                return [friendly]
             # Fallback final
             return [ai_service.small_talk_reply("Posso te ajudar com alguma dúvida agora. Se preferir ver opções, digite 'menu'.")]
 
