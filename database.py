@@ -193,14 +193,7 @@ def update_meeting_time_by_event(event_id: str, new_datetime: datetime) -> None:
         logger.info("db.update_meeting_time_by_event", extra={"event_id": event_id, "when": _to_utc_iso(new_datetime)})
 
 
-def get_future_meetings_by_number(whatsapp_number: str, start_from: datetime) -> list[sqlite3.Row]:
-    with get_connection() as conn:
-        cur = conn.execute(
-            "SELECT r.*, c.full_name, c.whatsapp_number FROM reunioes r JOIN clientes c ON r.client_id = c.id "
-            "WHERE c.whatsapp_number = ? AND r.meeting_datetime >= ? AND r.status = 'MARCADA' ORDER BY r.meeting_datetime ASC",
-            (whatsapp_number, _to_utc_iso(start_from)),
-        )
-        return cur.fetchall()
+# Função removida - usar get_future_meetings() e filtrar manualmente por número
 
 
 def list_clients(search: str | None = None, limit: int = 100) -> list[sqlite3.Row]:
