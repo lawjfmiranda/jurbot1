@@ -161,3 +161,40 @@ def create_event(title: str, start_datetime: datetime, end_datetime: datetime, d
     return created.get("id")
 
 
+def get_next_business_days(count: int = 5, start_offset_days: int = 0) -> List[datetime]:
+    tz = _tz()
+    now = datetime.now(tz) if tz else datetime.now()
+    days: List[datetime] = []
+    cursor = now + timedelta(days=start_offset_days)
+    horizon = 30
+    for _ in range(horizon):
+        if _is_business_day(cursor):
+            days.append(cursor)
+            if len(days) >= count:
+                break
+        cursor += timedelta(days=1)
+    return days
+
+
+def get_available_slots_for_date(target_date: datetime, duration_minutes: int = 60, preferred_period: Optional[str] = None) -> List[Tuple[datetime, datetime]]:
+    service = _get_service()
+    tz = _tz()
+    # normalize to local midnight
+    day = target_date
+    if tz and day.tzinfo is None:
+        day = day.replace(tzinfo=tz)
+    bh_start, bh_end = _business_hours_for_day(day)
+    now = datetime.now(tz) if tz else datetime.now()
+    busy = _list_busy_intervals(service, bh_start, bh_end)
+    candidates = _generate_candidate_slots(day, duration_minutes)
+    if day.date() == now.date():
+        min_start = now + timedelta(minutes=60)
+        candidates = [(s, e) for (s, e) in candidates if s >= min_start]
+    if preferred_period:
+        if preferred_period.lower().startswith("man"):
+            candidates = [(s, e) for (s, e) in candidates if 9 <= s.hour < 12]
+        elif preferred_period.lower().startswith("tar"):
+            candidates = [(s, e) for (s, e) in candidates if 13 <= s.hour < 18]
+    return _filter_free_slots(candidates, busy)
+
+

@@ -179,15 +179,41 @@ class Chatbot:
                 pref_val = "indiferente"
             data["pref_period"] = pref_val
             conversation_state.set(number, "data", data)
-            conversation_state.set(number, "state", "SCHEDULING_SHOW_SLOTS")
+            # Após escolher período, exibimos opções de datas úteis
+            conversation_state.set(number, "state", "SCHEDULING_CHOOSE_DATE")
+            days = calendar_service.get_next_business_days(count=5)
+            data["dates"] = [d.strftime('%Y-%m-%d') for d in days]
+            conversation_state.set(number, "data", data)
+            lines = ["Escolha a data desejada:"]
+            for idx, d in enumerate(days, start=1):
+                lines.append(f"{idx}️⃣  {d.strftime('%A, %d/%m/%Y')}")
+            lines.append("\nResponda com 1 a 5. Digite 'voltar' para o menu.")
+            return ["\n".join(lines)]
+
+        if current == "SCHEDULING_CHOOSE_DATE":
+            if message.lower() == "voltar":
+                conversation_state.set(number, "state", "MENU")
+                return [build_menu()]
+            m = re.search(r"\b([1-5])\b", message)
+            data = state.get("data", {})
+            dates = data.get("dates", [])
+            if not m or not dates:
+                return ["Por favor, responda com um número de 1 a 5 para escolher a data, ou 'voltar' para o menu."]
+            idx = int(m.group(1)) - 1
+            if idx < 0 or idx >= len(dates):
+                return ["Opção inválida. Responda com 1 a 5."]
+            selected_date_str = dates[idx]
+            selected_date = datetime.strptime(selected_date_str, '%Y-%m-%d')
             try:
-                slots = calendar_service.get_next_available_slots(
-                    preferred_period=("manhã" if pref_val=="manha" else ("tarde" if pref_val=="tarde" else None))
+                slots = calendar_service.get_available_slots_for_date(
+                    target_date=selected_date,
+                    preferred_period=("manhã" if data.get("pref_period") == "manha" else ("tarde" if data.get("pref_period") == "tarde" else None))
                 )
             except Exception:
                 slots = []
+            conversation_state.set(number, "state", "SCHEDULING_SHOW_SLOTS")
             conversation_state.set(number, "data", {**data, "slots": [(s.isoformat(), e.isoformat()) for s, e in slots[:3]]})
-            return [present_slots(slots), "Caso nenhum horário sirva, digite 'mais' para ver outras datas ou 'voltar' para o menu."]
+            return [present_slots(slots), "Digite 'mais' para ver outras datas, ou 'voltar' para o menu."]
 
         if current in ("LEAD_Q_START", "ASK_NAME"):
             # Store full name
