@@ -212,7 +212,8 @@ class Chatbot:
                         ]
                     # Se não temos o nome, colete antes de seguir
                     client = database.get_client_by_whatsapp(number)
-                    if not client or not client.get("full_name"):
+                    client_full_name = (client["full_name"] if client is not None else None)
+                    if not client or not client_full_name:
                         conversation_state.set(number, "state", "SCHEDULING_ASK_NAME")
                         return ["Antes de seguirmos, poderia me informar seu nome completo?"]
                     conversation_state.set(number, "state", "SCHEDULING_PREF_PERIOD")
