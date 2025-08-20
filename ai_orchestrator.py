@@ -42,6 +42,7 @@ class AIConversationManager:
         
         # IA decide ação e resposta
         decision = self._ai_decide(message, context)
+        self.logger.info(f"AI Decision: {decision} for message: '{message[:50]}...'")
         
         # Executar ação determinística se necessário
         result = self._execute(decision, user_number, message, state, client)
@@ -87,29 +88,29 @@ class AIConversationManager:
     def _ai_decide(self, message: str, context: str) -> Dict[str, Any]:
         """IA decide ação baseada em mensagem e contexto."""
         
-        prompt = f"""Você é JustIA, assistente do JM ADVOGADOS. Analise e decida a ação.
+        prompt = f"""Você é JustIA, assistente do JM ADVOGADOS. Analise o contexto e decida a ação apropriada.
 
-CONTEXTO:
+CONTEXTO ATUAL:
 {context}
 
-MENSAGEM:
+MENSAGEM DO CLIENTE:
 {message}
 
-Responda em JSON:
+REGRAS IMPORTANTES:
+- Use "greeting" APENAS se for a PRIMEIRA mensagem do cliente (saudação inicial)
+- Use "schedule" se cliente quer agendar/marcar consulta
+- Use "cancel" se cliente quer cancelar/desmarcar
+- Use "legal" para dúvidas jurídicas
+- Use "small_talk" para conversas casuais ou continuação de conversa
+- Se o cliente já tem nome no contexto, NÃO peça novamente
+- Se já está em processo de agendamento, continue o fluxo
+
+Responda APENAS com JSON:
 {{
   "intent": "greeting|schedule|cancel|legal|info|areas|list_meetings|small_talk",
-  "action": "nome_da_acao",
-  "response": "resposta natural e humana",
-  "collect": "what_to_collect_if_needed",
-  "params": {{}}
-}}
-
-IMPORTANTE:
-- Se cliente quer agendar: intent=schedule
-- Se quer cancelar: intent=cancel
-- Dúvida jurídica: intent=legal
-- Sempre responda de forma natural e empática
-- Não use menus, apenas conversa natural"""
+  "action": "acao_especifica",
+  "response": "resposta natural"
+}}"""
         
         try:
             result = ai_service._call_gemini_api(prompt)
@@ -127,15 +128,23 @@ IMPORTANTE:
         """Detecta intenção básica se IA falhar."""
         msg = message.lower()
         
-        if any(w in msg for w in ["agendar", "marcar", "consulta"]):
+        # Palavras de agendamento
+        if any(w in msg for w in ["agendar", "marcar", "consulta", "gostaria de agendar"]):
             return {"intent": "schedule", "action": "start_schedule", "response": "Vamos agendar sua consulta!"}
         
-        if any(w in msg for w in ["cancelar", "desmarcar"]):
+        # Palavras de cancelamento
+        if any(w in msg for w in ["cancelar", "desmarcar", "remarcar"]):
             return {"intent": "cancel", "action": "start_cancel", "response": "Vou verificar seus agendamentos."}
         
-        if len(message) > 30:
+        # Saudações específicas (apenas se for realmente uma saudação inicial)
+        if any(w in msg for w in ["olá", "oi", "bom dia", "boa tarde", "boa noite"]) and len(msg) < 20:
+            return {"intent": "greeting", "action": "greet", "response": ""}
+        
+        # Dúvidas jurídicas (mensagens mais longas com contexto jurídico)
+        if len(message) > 30 and any(w in msg for w in ["dúvida", "duvida", "problema", "caso", "processo", "ajuda"]):
             return {"intent": "legal", "action": "legal_answer", "response": ""}
         
+        # Default: small talk
         return {"intent": "small_talk", "action": "chat", "response": "Como posso ajudar?"}
     
     def _execute(self, decision: Dict, user_number: str, message: str, 
@@ -222,11 +231,12 @@ IMPORTANTE:
                     }
             except (KeyError, TypeError):
                 pass
-            else:
-                return {
-                    "replies": ["Vamos agendar! Primeiro, qual seu nome completo?"],
-                    "new_state": {"state": "SCHED_NAME", "data": data}
-                }
+            
+            # Se não tem nome, pedir nome
+            return {
+                "replies": ["Vamos agendar! Primeiro, qual seu nome completo?"],
+                "new_state": {"state": "SCHED_NAME", "data": data}
+            }
         
         elif current == "SCHED_NAME":
             # Coletar nome
