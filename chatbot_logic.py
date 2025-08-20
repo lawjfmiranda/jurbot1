@@ -261,7 +261,11 @@ class Chatbot:
                 start_dt = datetime.fromisoformat(start_iso)
                 end_dt = datetime.fromisoformat(end_iso)
                 client = database.get_client_by_whatsapp(number)
-                full_name = (client and client.get("full_name")) or data.get("full_name") or number
+                full_name = (
+                    (client["full_name"] if client is not None else None)
+                    or data.get("full_name")
+                    or number
+                )
                 event_id = calendar_service.create_event(
                     title=f"Consulta Inicial - {full_name}",
                     start_datetime=start_dt,
