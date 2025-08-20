@@ -18,66 +18,46 @@ GEMINI_MODEL_QUALITY = os.getenv("GEMINI_MODEL_QUALITY", "gemini-1.5-pro")
 FAQ_PATH = os.getenv("FAQ_PATH", os.path.join(os.path.dirname(__file__), "faq.json"))
 
 
-def _ensure_client():
-    if not GEMINI_API_KEY or not genai:
-        logger.debug("ai_service: client unavailable (missing key or library)")
-        return None
-    try:
-        genai.configure(api_key=GEMINI_API_KEY)
-        # Configuração para respostas mais naturais e consistentes
-        generation_config = genai.types.GenerationConfig(
-            temperature=0.7,
-            top_p=0.95,
-            top_k=40,
-            max_output_tokens=1024,
-        )
-        logger.debug("ai_service: configured generative model", extra={"model": GEMINI_MODEL})
-        return genai.GenerativeModel(GEMINI_MODEL, generation_config=generation_config)
-    except Exception:
-        logger.exception("ai_service: failed to initialize client")
-        return None
-
-
-def _ensure_quality_client():
-    if not GEMINI_API_KEY or not genai:
-        logger.debug("ai_service: quality client unavailable (missing key or library)")
-        return None
-    try:
-        genai.configure(api_key=GEMINI_API_KEY)
-        # Configuração para respostas mais precisas
-        generation_config = genai.types.GenerationConfig(
-            temperature=0.5,
-            top_p=0.9,
-            top_k=30,
-            max_output_tokens=2048,
-        )
-        logger.debug("ai_service: configured quality model", extra={"model": GEMINI_MODEL_QUALITY})
-        return genai.GenerativeModel(GEMINI_MODEL_QUALITY, generation_config=generation_config)
-    except Exception:
-        logger.exception("ai_service: failed to initialize quality client")
-        return None
-
-
-# Função auxiliar para chamar API com configurações customizadas
-def _call_gemini_api(prompt: str, temperature: float = 0.7, max_tokens: int = 1024) -> str:
+# Função consolidada para chamar Gemini API
+def _call_gemini_api(prompt: str, temperature: float = 0.7, max_tokens: int = 1024, use_quality: bool = False) -> str:
     """Chama Gemini API com configurações customizadas."""
     if not GEMINI_API_KEY or not genai:
+        logger.debug("ai_service: API unavailable (missing key or library)")
         return ""
     
     try:
         genai.configure(api_key=GEMINI_API_KEY)
+        
+        # Escolher modelo baseado na qualidade solicitada
+        model_name = GEMINI_MODEL_QUALITY if use_quality else GEMINI_MODEL
+        
         generation_config = genai.types.GenerationConfig(
             temperature=temperature,
-            top_p=0.95,
-            top_k=40,
+            top_p=0.95 if not use_quality else 0.9,
+            top_k=40 if not use_quality else 30,
             max_output_tokens=max_tokens,
         )
-        model = genai.GenerativeModel(GEMINI_MODEL, generation_config=generation_config)
+        
+        model = genai.GenerativeModel(model_name, generation_config=generation_config)
+        logger.debug(f"ai_service: using model {model_name} (quality={use_quality})")
+        
         response = model.generate_content(prompt)
         return response.text if response else ""
     except Exception as e:
         logger.error(f"Gemini API error: {e}")
         return ""
+
+
+def _ensure_client():
+    """Compatibilidade - usar _call_gemini_api diretamente"""
+    logger.debug("ai_service: _ensure_client deprecated, use _call_gemini_api")
+    return True if GEMINI_API_KEY and genai else None
+
+
+def _ensure_quality_client():
+    """Compatibilidade - usar _call_gemini_api com use_quality=True"""
+    logger.debug("ai_service: _ensure_quality_client deprecated, use _call_gemini_api")
+    return True if GEMINI_API_KEY and genai else None
 
 ALLOWED_INTENTS = [
     "saudacao",
@@ -136,8 +116,7 @@ def extract_intent(user_text: str) -> dict:
     Retorno: { intent: one_of(ALLOWED_INTENTS), area: optional[str], confidence: float }
     """
     logger.info("ai_service.extract_intent: start")
-    model = _ensure_client()
-    if not model:
+    if not GEMINI_API_KEY or not genai:
         # fallback heurístico simples
         t = user_text.lower()
         logger.warning("ai_service.extract_intent: fallback heuristics")
@@ -171,8 +150,7 @@ def extract_intent(user_text: str) -> dict:
         "Texto do usuário: \n" % (ALLOWED_INTENTS, _load_allowed_areas())
     ) + user_text
     try:
-        resp = model.generate_content(prompt)
-        text = (resp.text or "").strip()
+        text = _call_gemini_api(prompt, temperature=0.5, max_tokens=512).strip()
         import json as _json, re as _re
         try:
             data = _json.loads(text)
@@ -232,17 +210,15 @@ def small_talk_reply(base_text: str, user_text: Optional[str] = None, max_chars:
 
     Se a IA falhar, retorna base_text.
     """
-    model = _ensure_client()
-    if not model:
-        logger.debug("ai_service.small_talk: fallback (no model)")
+    if not GEMINI_API_KEY or not genai:
+        logger.debug("ai_service.small_talk: fallback (no API)")
         return base_text
     sys_prompt = (
         "Reescreva a mensagem abaixo em pt-BR, mantendo o significado, tom profissional, acolhedor e claro. "
         f"Limite a {max_chars} caracteres. Não invente informações novas.\nMensagem:\n"
     )
     try:
-        resp = model.generate_content(sys_prompt + base_text)
-        text = (resp.text or "").strip()
+        text = _call_gemini_api(sys_prompt + base_text, temperature=0.7, max_tokens=max_chars//2).strip()
         if len(text) > max_chars:
             text = text[:max_chars]
         logger.debug("ai_service.small_talk: success", extra={"len": len(text)})
@@ -255,8 +231,7 @@ def small_talk_reply(base_text: str, user_text: Optional[str] = None, max_chars:
 def legal_answer(area: str, question: str, max_chars: int = 700) -> str:
     """Responde dúvidas jurídicas genéricas com disclaimers e limites. Não dá aconselhamento específico."""
     logger.info("ai_service.legal_answer: start", extra={"area": area})
-    model = _ensure_quality_client() or _ensure_client()
-    if not model:
+    if not GEMINI_API_KEY or not genai:
         logger.warning("ai_service.legal_answer: fallback (no model)")
         return (
             "Isto é informativo e não substitui orientação de um advogado. "
@@ -278,8 +253,7 @@ def legal_answer(area: str, question: str, max_chars: int = 700) -> str:
         "Pergunta: "
     )
     try:
-        resp = model.generate_content(sys_prompt + question)
-        text = (resp.text or "").strip()
+        text = _call_gemini_api(sys_prompt + question, temperature=0.5, max_tokens=max_chars, use_quality=True).strip()
         if len(text) > max_chars:
             text = text[:max_chars]
         logger.info("ai_service.legal_answer: success", extra={"len": len(text)})
