@@ -234,18 +234,18 @@ class Chatbot:
                 conversation_state.set(number, "state", "MENU")
                 return self.handle_incoming_message(number, m.group(1))
             # IA como padrão
-            if len(message) >= 8:
+            if len(message) >= 3:
                 try:
                     ai = ai_service.extract_intent(message)
                 except Exception:
                     ai = {"intent": None}
-                if ai.get("intent") == "duvida_juridica" and ai.get("confidence", 0) >= 0.5:
+                if ai.get("intent") == "duvida_juridica" and ai.get("confidence", 0) >= 0.45:
                     area = ai.get("area") or "Direito do Trabalho"
                     reply = ai_service.legal_answer(area, message)
                     reply += "\n\nSe quiser, posso te ajudar a agendar uma consulta. Digite 2."
                     return [reply]
             # Se nada foi entendido, sugerir menu
-            return [ai_service.small_talk_reply("Posso te ajudar com alguma dúvida ou agendar uma consulta. Se preferir, digite 'menu'.")]
+            return [ai_service.small_talk_reply("Posso te ajudar com alguma dúvida agora. Se preferir ver opções, digite 'menu'.")]
 
         if current == "MENU":
             intent = detect_intent(message)

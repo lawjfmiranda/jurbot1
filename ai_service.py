@@ -94,14 +94,21 @@ def extract_intent(user_text: str) -> dict:
 
     prompt = (
         "Você é um classificador de intenções para um chatbot jurídico em pt-BR. "
-        "Retorne UM JSON com chaves: intent (uma de %s), area (opcional, uma de %s), confidence (0..1). "
-        "Se fora do escopo jurídico, marque intent='desconhecido'. Texto: \n" % (ALLOWED_INTENTS, ALLOWED_AREAS)
+        "Responda APENAS com um JSON, sem texto extra, sem comentários, sem markdown.\n"
+        "Formato: {\"intent\": <uma de %s>, \"area\": <opcional, uma de %s>, \"confidence\": <0..1>}\n"
+        "Se fora do escopo jurídico, use intent='desconhecido'.\n"
+        "Texto do usuário: \n" % (ALLOWED_INTENTS, ALLOWED_AREAS)
     ) + user_text
     try:
         resp = model.generate_content(prompt)
         text = (resp.text or "").strip()
-        import json as _json
-        data = _json.loads(text)
+        import json as _json, re as _re
+        try:
+            data = _json.loads(text)
+        except Exception:
+            # Extrai o primeiro bloco que parece JSON
+            m = _re.search(r"\{[\s\S]*\}", text)
+            data = _json.loads(m.group(0)) if m else {}
         intent = data.get("intent")
         if intent not in ALLOWED_INTENTS:
             intent = "desconhecido"
@@ -111,6 +118,10 @@ def extract_intent(user_text: str) -> dict:
         return {"intent": intent, "area": area, "confidence": conf}
     except Exception:
         logger.exception("ai_service.extract_intent: error in generation or parsing")
+        # heurística como fallback final
+        t = user_text.lower()
+        if any(k in t for k in ["ajuda", "preciso", "duvida", "dúvida", "multa", "ipva", "preso", "policia", "carro", "transferir"]):
+            return {"intent": "duvida_juridica", "confidence": 0.55}
         return {"intent": "desconhecido", "confidence": 0.3}
 
 
