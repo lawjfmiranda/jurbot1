@@ -109,13 +109,19 @@ MENSAGEM DO CLIENTE:
 
 REGRAS IMPORTANTES:
 - Use "greeting" APENAS se for a PRIMEIRA mensagem do cliente (saudação inicial)
-- Se ESTADO ATUAL = SCHED_NAME/SCHED_PERIOD/SCHED_DATE/SCHED_TIME: continue o fluxo de agendamento
+- Se ESTADO ATUAL = SCHED_NAME/SCHED_PERIOD/SCHED_DATE/SCHED_SLOT/SCHED_TIME: continue o fluxo de agendamento
 - Use "schedule" APENAS se cliente quer INICIAR novo agendamento E estado = FREE
 - Use "cancel" se cliente quer cancelar/desmarcar
+- Use "list_meetings" se cliente quer VER/CONSULTAR/VERIFICAR seus agendamentos existentes
+- Use "info" APENAS para informações do escritório (endereço, telefone, horário)
 - Use "legal" para dúvidas jurídicas
-- Use "small_talk" para conversas casuais ou continuação de conversa
+- Use "small_talk" para conversas casuais
 - NUNCA interrompa um processo de agendamento em andamento
-- Se já coletando dados (nome, período, etc), continue coletando
+- EXEMPLOS:
+  * "quando é minha consulta?" → list_meetings
+  * "qual meu agendamento?" → list_meetings  
+  * "onde fica o escritório?" → info
+  * "qual o telefone?" → info
 
 Responda APENAS com JSON:
 {{
