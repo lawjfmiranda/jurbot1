@@ -323,7 +323,7 @@ Responda APENAS com JSON:
                 
                 # Buscar slots
                 period = "manhã" if data.get("period") == "manha" else ("tarde" if data.get("period") == "tarde" else None)
-                slots = calendar_service.get_available_slots_for_date(selected, period)
+                slots = calendar_service.get_available_slots_for_date(selected, duration_minutes=60, preferred_period=period)
                 
                 if not slots:
                     return {
