@@ -234,8 +234,8 @@ def legal_answer(area: str, question: str, max_chars: int = 700) -> str:
     if not GEMINI_API_KEY or not genai:
         logger.warning("ai_service.legal_answer: fallback (no model)")
         return (
-            "Isto é informativo e não substitui orientação de um advogado. "
-            "Podemos conversar mais na consulta para analisar seu caso."
+            "Para orientação detalhada sobre seu caso específico, "
+            "posso agendar uma consulta com nosso escritório JM ADVOGADOS."
         )
     allowed = _load_allowed_areas()
     if not area_in_allowed(area):
@@ -247,7 +247,8 @@ def legal_answer(area: str, question: str, max_chars: int = 700) -> str:
         "Você é a JustIA da JM ADVOGADOS. Responda em pt-BR, de forma clara e empática. "
         f"Atue apenas nas áreas: {areas_text}. Se a pergunta não estiver dentro dessas áreas, responda brevemente que está fora do nosso escopo e ofereça ajuda nas áreas listadas. "
         "Traga visão geral, passos iniciais e cuidados. Não prometa resultados; não solicite documentos; evite citar artigos/leis. "
-        "Comece sempre com: 'Isto é informativo e não substitui orientação de um advogado.' "
+        "SEMPRE termine com: 'Para orientação detalhada sobre seu caso específico, posso agendar uma consulta com nosso escritório JM ADVOGADOS.' "
+        "NUNCA diga 'procure um advogado' - sempre direcione para JM ADVOGADOS. "
         f"Limite a {max_chars} caracteres.\n"
         f"Área foco: {area}.\n"
         "Pergunta: "
