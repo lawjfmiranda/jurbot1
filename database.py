@@ -177,3 +177,21 @@ def get_yesterday_meetings_to_followup(today: date | None = None) -> list[sqlite
         return cur.fetchall()
 
 
+def update_meeting_time_by_event(event_id: str, new_datetime: datetime) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE reunioes SET meeting_datetime = ? WHERE google_calendar_event_id = ?",
+            (_to_utc_iso(new_datetime), event_id),
+        )
+
+
+def get_future_meetings_by_number(whatsapp_number: str, start_from: datetime) -> list[sqlite3.Row]:
+    with get_connection() as conn:
+        cur = conn.execute(
+            "SELECT r.*, c.full_name, c.whatsapp_number FROM reunioes r JOIN clientes c ON r.client_id = c.id "
+            "WHERE c.whatsapp_number = ? AND r.meeting_datetime >= ? AND r.status = 'MARCADA' ORDER BY r.meeting_datetime ASC",
+            (whatsapp_number, _to_utc_iso(start_from)),
+        )
+        return cur.fetchall()
+
+

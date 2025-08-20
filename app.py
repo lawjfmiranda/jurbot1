@@ -21,6 +21,10 @@ chatbot = Chatbot()
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO), format="%(asctime)s %(levelname)s %(name)s - %(message)s")
 
+# Rate limit simples em memória por número
+_last_seen: dict[str, float] = {}
+_MIN_INTERVAL_SECONDS = float(os.getenv("MIN_MSG_INTERVAL", "0.5"))
+
 
 def _extract_number(payload: Dict[str, Any]) -> Optional[str]:
     # Prefer event-style contact id first (avoid using 'sender' which is the instance number)
@@ -173,6 +177,15 @@ def evolution_webhook():
                 short = str(msg)[:300]
             app.logger.info(f"Skipped msg idx={idx} number={number} text_len={(len(text) if text else 0)} payload={short}")
             continue
+
+        # rate limit
+        import time
+        now_s = time.time()
+        last = _last_seen.get(number, 0.0)
+        if now_s - last < _MIN_INTERVAL_SECONDS:
+            app.logger.debug(f"Rate limited number={number}")
+            continue
+        _last_seen[number] = now_s
 
         app.logger.info(f"Incoming idx={idx} number={number} text='{text[:120]}'")
         try:

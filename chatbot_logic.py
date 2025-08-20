@@ -174,11 +174,12 @@ class Chatbot:
                 return ["Certo, vamos cancelar sua consulta. Informe a data (dd/mm/aaaa) ou digite 'todas' para listar as próximas do seu número."]
             if contains_any(message, ["adiantar", "antecipar", "mais cedo"]):
                 # tentar slots mais próximos dos próximos 3 dias
-                existing = [r for r in database.get_future_meetings(datetime.now()) if r["whatsapp_number"] == number]
+                existing = database.get_future_meetings_by_number(number, datetime.utcnow())
                 if not existing:
                     conversation_state.set(number, "state", "SCHEDULING_PREF_PERIOD")
                     return ["Não encontrei consulta ativa. Vamos agendar uma nova. Você prefere de manhã ou à tarde?"]
                 data["pref_period"] = data.get("pref_period", "indiferente")
+                data["reschedule_event_id"] = existing[0]["google_calendar_event_id"]
                 conversation_state.set(number, "data", data)
                 conversation_state.set(number, "state", "SCHEDULING_SHOW_SLOTS")
                 fresh = calendar_service.get_next_available_slots(
@@ -420,21 +421,32 @@ class Chatbot:
                 description_value = "\n".join(desc_lines) if desc_lines else "Consulta inicial"
 
                 title_value = f"Consulta Inicial - {full_name} - +{number}"
-                event_id = calendar_service.create_event(
-                    title=title_value,
-                    start_datetime=start_dt,
-                    end_datetime=end_dt,
-                    description=description_value,
-                    attendees=[data.get("email")] if data.get("email") else None,
-                )
-                # Persist meeting
-                client_id = (client and client["id"]) or data.get("client_id") or database.upsert_client(number)
-                database.add_meeting(
-                    client_id=client_id,
-                    google_calendar_event_id=event_id,
-                    meeting_datetime=start_dt,
-                    status="MARCADA",
-                )
+                if data.get("reschedule_event_id"):
+                    calendar_service.update_event(
+                        event_id=data["reschedule_event_id"],
+                        title=title_value,
+                        start_datetime=start_dt,
+                        end_datetime=end_dt,
+                        description=description_value,
+                        attendees=[data.get("email")] if data.get("email") else None,
+                    )
+                    database.update_meeting_time_by_event(data["reschedule_event_id"], start_dt)
+                else:
+                    event_id = calendar_service.create_event(
+                        title=title_value,
+                        start_datetime=start_dt,
+                        end_datetime=end_dt,
+                        description=description_value,
+                        attendees=[data.get("email")] if data.get("email") else None,
+                    )
+                    # Persist meeting
+                    client_id = (client and client["id"]) or data.get("client_id") or database.upsert_client(number)
+                    database.add_meeting(
+                        client_id=client_id,
+                        google_calendar_event_id=event_id,
+                        meeting_datetime=start_dt,
+                        status="MARCADA",
+                    )
                 conversation_state.clear(number)
                 tz = ZoneInfo(os.getenv("TIMEZONE", "America/Sao_Paulo")) if ZoneInfo else None
                 local_start = start_dt.astimezone(tz) if tz and start_dt.tzinfo else start_dt

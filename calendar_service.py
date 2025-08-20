@@ -207,3 +207,25 @@ def delete_event(event_id: str) -> None:
         pass
 
 
+def update_event(event_id: str, title: Optional[str] = None, start_datetime: Optional[datetime] = None,
+                 end_datetime: Optional[datetime] = None, description: Optional[str] = None,
+                 attendees: Optional[List[str]] = None) -> None:
+    service = _get_service()
+    body: dict = {}
+    if title is not None:
+        body["summary"] = title
+    if description is not None:
+        body["description"] = description
+    if start_datetime is not None:
+        body.setdefault("start", {})["dateTime"] = _rfc3339(start_datetime)
+        body.setdefault("start", {})["timeZone"] = TIMEZONE
+    if end_datetime is not None:
+        body.setdefault("end", {})["dateTime"] = _rfc3339(end_datetime)
+        body.setdefault("end", {})["timeZone"] = TIMEZONE
+    if attendees is not None:
+        body["attendees"] = [{"email": e} for e in attendees if e]
+    if not body:
+        return
+    service.events().patch(calendarId=CALENDAR_ID, eventId=event_id, body=body, sendUpdates="all").execute()
+
+
