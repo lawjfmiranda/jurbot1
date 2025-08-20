@@ -1,13 +1,21 @@
 {
-  "boas_vindas": "Olá! Sou a JustIA, assistente virtual do Escritório [Nome do Escritório]. Como posso te ajudar hoje?",
+  "boas_vindas": "Olá! Sou a JustIA, assistente virtual da JM ADVOGADOS. Como posso te ajudar hoje?",
+  "bio": "Advogado criminalista, professor de direito penal e processo penal, com pesquisa em Direito Restitutivo e foco em recuperação monetária. Coordenador do Curso de Direito da FAM (Maringá), pós-graduado em Processo Penal Aplicado, Investigação Criminal e Psicologia Forense. Atuação voltada a ajudar pessoas com atenção redobrada à população hipossuficiente, visando sempre um atendimento digno e efetivo.",
   "areas_atuacao": {
-    "Direito de Família": "Atuamos em casos de divórcio, guarda de filhos, pensão alimentícia e inventários. Oferecemos suporte completo para resolver questões familiares de forma justa.",
-    "Direito do Trabalho": "Defendemos os direitos dos trabalhadores em casos de demissão indevida, horas extras não pagas, assédio moral e acidentes de trabalho.",
+    "Responsabilidade Civil": "Indenizações por danos materiais e morais, acidentes e prejuízos diversos.",
+    "Ação Penal": "Defesa em processos criminais em todas as fases.",
+    "Medida Protetiva": "Proteção e acompanhamento de medidas protetivas de urgência.",
+    "Direito das Famílias": "Divórcio, guarda, pensão alimentícia e regulamentação de convivência.",
+    "Recursos": "Interposição e sustentação de recursos nas esferas criminal e cível.",
+    "FIES": "Questões relacionadas ao financiamento estudantil.",
+    "Flagrantes": "Atuação rápida em prisões em flagrante e audiências de custódia.",
+    "Inquérito policial": "Acompanhamento de investigações e medidas na fase policial.",
     "outra_area": "No momento, não atuamos nesta área específica. Posso ajudar com alguma outra questão?"
   },
   "informacoes_gerais": {
-    "endereco": "Nosso escritório está localizado em [Seu Endereço Completo].",
-    "horario": "Nosso horário de funcionamento é de segunda a sexta, das 9h às 18h."
+    "endereco": "Avenida Cerro Azul, nº 258, Zona 02, Maringá – Paraná",
+    "horario": "De segunda a sexta, das 9h às 18h.",
+    "site": "https://jeanmiranda.com.br/"
   }
 }
 

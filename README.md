@@ -10,7 +10,7 @@ Projeto Flask com integrações ao WhatsApp (Evolution API), Google Calendar e S
 - `whatsapp_service.py`: envio de mensagens via Evolution API.
 - `notification_service.py`: notificação interna (webhook ou SMTP).
 - `scheduler.py`: lembretes e follow-ups.
-- `faq.json`: conteúdo editável de FAQs.
+- `faq.json`: conteúdo editável de FAQs, com saudação, bio, áreas e informações do escritório (JM ADVOGADOS).
  - `ai_service.py`: integração com IA (Gemini) para intenção e respostas informativas.
 
 ## Variáveis de Ambiente
