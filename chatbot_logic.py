@@ -85,7 +85,7 @@ def greeting_text(number: Optional[str] = None) -> str:
     if number:
         try:
             client = database.get_client_by_whatsapp(number)
-            name = (client and client.get("full_name")) or None
+            name = (client["full_name"] if client is not None else None)
             if name:
                 first = str(name).split(" ")[0]
                 return base.replace("Olá!", f"Olá, {first}!")
@@ -269,8 +269,8 @@ class Chatbot:
                         ]
                     # Puxar dados existentes do cliente e evitar perguntar de novo
                     client = database.get_client_by_whatsapp(number)
-                    client_full_name = (client and client.get("full_name")) or None
-                    client_email = (client and client.get("email")) or None
+                    client_full_name = (client["full_name"] if client is not None else None)
+                    client_email = (client["email"] if client is not None else None)
                     if client_full_name:
                         data["full_name"] = client_full_name
                     if client_email:
