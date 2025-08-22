@@ -1,0 +1,313 @@
+{
+  "name": "⚖️ SUPER CRIMINAL - Dr. JM Especialista Completo",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "super_criminal",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-super-criminal",
+      "name": "⚖️ Webhook Criminal Avançado",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ⚖️ SUPER PROCESSADOR CRIMINAL - Dr. JM Miranda\nconst inputData = $input.all()[0].json;\n\nconst userNumber = inputData.user_number;\nconst message = inputData.message.toLowerCase();\nconst clientInfo = inputData.client_info || {};\nconst timestamp = new Date();\n\nconsole.log('⚖️ SUPER CRIMINAL processando:', userNumber);\n\n// ========================\n// 🚨 CLASSIFICAÇÃO ULTRA-ESPECÍFICA\n// ========================\n\nlet caseType = 'geral';\nlet urgencyLevel = 1; // 1-5 (5 = máxima urgência)\nlet drJMSpecialty = false;\nlet immediateAction = [];\nlet documentsNeeded = [];\nlet legalStrategy = [];\nlet estimatedCost = 'consulta';\nlet timeframe = '30 dias';\n\n// 🚨 FLAGRANTE - URGÊNCIA MÁXIMA\nif (message.includes('preso') || message.includes('flagrante') || message.includes('custódia')) {\n  caseType = 'flagrante';\n  urgencyLevel = 5;\n  drJMSpecialty = true;\n  timeframe = '24 horas';\n  estimatedCost = 'R$ 3.000 - R$ 8.000';\n  \n  immediateAction = [\n    'Contato imediato com delegacia',\n    'Habeas Corpus preventivo',\n    'Acompanhamento audiência custódia',\n    'Pedido liberdade provisória',\n    'Orientação familiar'\n  ];\n  \n  documentsNeeded = [\n    'RG e CPF do preso',\n    'Comprovante residência',\n    'Comprovante renda',\n    'Certidão antecedentes',\n    'Contato de testemunhas'\n  ];\n  \n  legalStrategy = [\n    'Questionar legalidade da prisão',\n    'Verificar vícios no flagrante',\n    'Pedido de relaxamento',\n    'Medidas cautelares alternativas',\n    'Defesa técnica especializada'\n  ];\n}\n\n// 🔍 INQUÉRITO POLICIAL - ALTA PRIORIDADE\nelse if (message.includes('inquérito') || message.includes('delegacia') || message.includes('investigação')) {\n  caseType = 'inquerito';\n  urgencyLevel = 4;\n  drJMSpecialty = true;\n  timeframe = '7 dias';\n  estimatedCost = 'R$ 2.000 - R$ 5.000';\n  \n  immediateAction = [\n    'Análise do inquérito',\n    'Acompanhamento em depoimentos',\n    'Juntada de documentos',\n    'Pedidos de diligências',\n    'Defesa prévia especializada'\n  ];\n  \n  documentsNeeded = [\n    'Intimação recebida',\n    'Cópia do inquérito (se tiver)',\n    'Documentos pessoais',\n    'Comprovantes de álibi',\n    'Contatos de testemunhas'\n  ];\n  \n  legalStrategy = [\n    'Controle da investigação',\n    'Produção de provas favoráveis',\n    'Questionamento de ilegalidades',\n    'Pedido de arquivamento',\n    'Preparação para eventual denúncia'\n  ];\n}\n\n// 📋 PROCESSO CRIMINAL - DEFESA TÉCNICA\nelse if (message.includes('processo') || message.includes('denúncia') || message.includes('audiência')) {\n  caseType = 'processo';\n  urgencyLevel = 3;\n  drJMSpecialty = true;\n  timeframe = '15 dias';\n  estimatedCost = 'R$ 4.000 - R$ 15.000';\n  \n  immediateAction = [\n    'Análise da denúncia',\n    'Resposta à acusação',\n    'Rol de testemunhas',\n    'Estratégia de defesa',\n    'Preparação para audiências'\n  ];\n  \n  legalStrategy = [\n    'Contestação da materialidade',\n    'Questionamento da autoria',\n    'Excludentes de ilicitude',\n    'Teses absolutórias',\n    'Dosimetria da pena'\n  ];\n}\n\n// 📜 RECURSOS - ESPECIALIDADE DR. JM\nelse if (message.includes('recurso') || message.includes('apelação') || message.includes('condenado')) {\n  caseType = 'recurso';\n  urgencyLevel = 4;\n  drJMSpecialty = true;\n  timeframe = '5 dias'; // Prazo recursal\n  estimatedCost = 'R$ 3.000 - R$ 10.000';\n  \n  immediateAction = [\n    'Análise da sentença',\n    'Identificação de vícios',\n    'Elaboração de recurso',\n    'Pedido de efeito suspensivo',\n    'Sustentação oral'\n  ];\n  \n  legalStrategy = [\n    'Nulidades processuais',\n    'Erro de fato ou direito',\n    'Reforma da sentença',\n    'Redução da pena',\n    'Substituição por restritiva'\n  ];\n}\n\n// 🌿 DROGAS - ESTRATÉGIA ESPECÍFICA\nelse if (message.includes('droga') || message.includes('tráfico') || message.includes('entorpecente')) {\n  caseType = 'drogas';\n  urgencyLevel = 3;\n  drJMSpecialty = true;\n  estimatedCost = 'R$ 5.000 - R$ 20.000';\n  \n  legalStrategy = [\n    'Desclassificação tráfico para uso',\n    'Questionamento da apreensão',\n    'Vícios na cadeia de custódia',\n    'Princípio da insignificância',\n    'Medidas alternativas'\n  ];\n}\n\n// ========================\n// 🎓 CREDENCIAIS DR. JM\n// ========================\n\nconst drJMCredentials = [\n  '👨‍🏫 Professor de Direito Penal',\n  '🎓 Professor de Processo Penal',\n  '📚 Coordenador Curso de Direito FAM',\n  '🔍 Pós-graduado em Investigação Criminal',\n  '🧠 Especialista em Psicologia Forense',\n  '⚖️ Focado em Direito Restitutivo'\n];\n\n// ========================\n// 📊 ANÁLISE DE VIABILIDADE\n// ========================\n\nfunction calculateViability(caseType, urgency) {\n  let viability = 'alta';\n  let successChance = '80%';\n  \n  switch(caseType) {\n    case 'flagrante':\n      viability = 'muito alta';\n      successChance = '90%';\n      break;\n    case 'inquerito':\n      viability = 'alta';\n      successChance = '85%';\n      break;\n    case 'recurso':\n      viability = 'alta';\n      successChance = '75%';\n      break;\n    case 'drogas':\n      viability = 'média-alta';\n      successChance = '70%';\n      break;\n  }\n  \n  return { viability, successChance };\n}\n\nconst analysis = calculateViability(caseType, urgencyLevel);\n\n// ========================\n// 🔥 RESPOSTA ULTRA-PERSONALIZADA\n// ========================\n\nfunction generateResponse(caseType, urgency, analysis) {\n  const urgencyEmoji = urgency >= 4 ? '🚨' : urgency >= 3 ? '⚠️' : '⚖️';\n  const drCredits = drJMCredentials.slice(0, 3).join('\\n• ');\n  \n  let response = `${urgencyEmoji} CASO CRIMINAL - Dr. JM Miranda\\n\\n`;\n  \n  // Credenciais do Dr. JM\n  response += `👨‍⚖️ SEU ADVOGADO:\\n• ${drCredits}\\n\\n`;\n  \n  // Análise do caso\n  response += `📊 ANÁLISE DO SEU CASO:\\n`;\n  response += `• Tipo: ${caseType.toUpperCase()}\\n`;\n  response += `• Urgência: ${urgency}/5 ${urgency >= 4 ? '(ALTA)' : '(NORMAL)'}\\n`;\n  response += `• Viabilidade: ${analysis.viability}\\n`;\n  response += `• Chance sucesso: ${analysis.successChance}\\n`;\n  response += `• Prazo ação: ${timeframe}\\n\\n`;\n  \n  // Ações imediatas\n  if (immediateAction.length > 0) {\n    response += `⚡ AÇÕES IMEDIATAS:\\n`;\n    response += immediateAction.map((action, i) => `${i+1}. ${action}`).join('\\n') + '\\n\\n';\n  }\n  \n  // Estratégia jurídica\n  if (legalStrategy.length > 0) {\n    response += `🎯 ESTRATÉGIA JURÍDICA:\\n`;\n    response += legalStrategy.map((strategy, i) => `• ${strategy}`).join('\\n') + '\\n\\n';\n  }\n  \n  // Documentos necessários\n  if (documentsNeeded.length > 0) {\n    response += `📋 DOCUMENTOS NECESSÁRIOS:\\n`;\n    response += documentsNeeded.map((doc, i) => `${i+1}. ${doc}`).join('\\n') + '\\n\\n';\n  }\n  \n  // Investimento\n  response += `💰 INVESTIMENTO: ${estimatedCost}\\n\\n`;\n  \n  // Call to action\n  if (urgency >= 4) {\n    response += `🔴 URGENTE: Dr. JM precisa falar com você HOJE!\\n`;\n    response += `📞 Vou agendar contato IMEDIATO!`;\n  } else {\n    response += `📞 Vamos agendar sua consulta estratégica com Dr. JM?`;\n  }\n  \n  return response;\n}\n\nconst response = generateResponse(caseType, urgencyLevel, analysis);\n\n// ========================\n// 🎯 RESULTADO FINAL\n// ========================\n\nconst result = {\n  user_number: userNumber,\n  case_type: 'criminal',\n  subtype: caseType,\n  urgency_level: urgencyLevel,\n  dr_jm_specialty: drJMSpecialty,\n  \n  // Análise detalhada\n  viability: analysis.viability,\n  success_chance: analysis.successChance,\n  estimated_cost: estimatedCost,\n  timeframe: timeframe,\n  \n  // Ações e estratégias\n  immediate_actions: immediateAction,\n  legal_strategy: legalStrategy,\n  documents_needed: documentsNeeded,\n  \n  // Resposta e próximos passos\n  response: response,\n  needs_immediate_contact: urgencyLevel >= 4,\n  needs_scheduling: urgencyLevel < 4,\n  priority_level: urgencyLevel >= 4 ? 'urgent' : 'high',\n  \n  // Métricas\n  processed_at: timestamp.toISOString(),\n  processing_time: 'instantaneous',\n  dr_jm_credentials: drJMCredentials,\n  \n  // Próximas ações\n  next_steps: [\n    urgencyLevel >= 4 ? 'Contato imediato Dr. JM' : 'Agendar consulta',\n    'Reunir documentos necessários',\n    'Preparar estratégia de defesa',\n    'Iniciar procedimentos legais'\n  ]\n};\n\nconsole.log('⚖️ SUPER CRIMINAL processado:', result);\n\nreturn result;"
+      },
+      "id": "super-criminal-processor",
+      "name": "⚖️ Super Processador Criminal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.urgency_level }}",
+              "operation": "largerEqual",
+              "value2": 4
+            }
+          ]
+        }
+      },
+      "id": "check-urgent-criminal",
+      "name": "🚨 Caso Urgente?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "to": "dr.jm@jmadvogados.com.br",
+        "subject": "🚨 CASO CRIMINAL URGENTE - {{ $json.subtype.toUpperCase() }}",
+        "message": "ALERTA URGÊNCIA MÁXIMA\\n\\n👤 Cliente: {{ $json.user_number }}\\n⚖️ Tipo: {{ $json.subtype }}\\n🚨 Urgência: {{ $json.urgency_level }}/5\\n⏰ Prazo: {{ $json.timeframe }}\\n\\n📱 MENSAGEM:\\n{{ $json.message }}\\n\\n🎯 AÇÕES IMEDIATAS:\\n{{ $json.immediate_actions.join('\\n• ') }}\\n\\n📞 CONTATO NECESSÁRIO: HOJE!"
+      },
+      "id": "email-urgent-alert",
+      "name": "📧 Email Urgente Dr. JM",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [840, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://api.whatsapp.com/send",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "phone",
+              "value": "+5544999999999"
+            },
+            {
+              "name": "message",
+              "value": "🚨 CASO URGENTE\\n\\nCliente: {{ $json.user_number }}\\nTipo: {{ $json.subtype }}\\nUrgência: {{ $json.urgency_level }}/5\\n\\nPrecisa contato IMEDIATO!"
+            }
+          ]
+        }
+      },
+      "id": "whatsapp-alert-drjm",
+      "name": "📱 WhatsApp Dr. JM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [840, 200]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO criminal_cases (user_number, case_type, subtype, urgency_level, viability, estimated_cost, immediate_actions, legal_strategy, documents_needed, created_at, dr_jm_specialty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "parameters": {
+          "parameters": [
+            {
+              "name": "user_number",
+              "value": "={{ $json.user_number }}"
+            },
+            {
+              "name": "case_type",
+              "value": "criminal"
+            },
+            {
+              "name": "subtype",
+              "value": "={{ $json.subtype }}"
+            },
+            {
+              "name": "urgency_level",
+              "value": "={{ $json.urgency_level }}"
+            },
+            {
+              "name": "viability",
+              "value": "={{ $json.viability }}"
+            },
+            {
+              "name": "estimated_cost",
+              "value": "={{ $json.estimated_cost }}"
+            },
+            {
+              "name": "immediate_actions",
+              "value": "={{ JSON.stringify($json.immediate_actions) }}"
+            },
+            {
+              "name": "legal_strategy",
+              "value": "={{ JSON.stringify($json.legal_strategy) }}"
+            },
+            {
+              "name": "documents_needed",
+              "value": "={{ JSON.stringify($json.documents_needed) }}"
+            },
+            {
+              "name": "created_at",
+              "value": "={{ $json.processed_at }}"
+            },
+            {
+              "name": "dr_jm_specialty",
+              "value": "={{ $json.dr_jm_specialty }}"
+            }
+          ]
+        }
+      },
+      "id": "save-criminal-case",
+      "name": "💾 Salvar Caso Criminal",
+      "type": "n8n-nodes-base.sqlite",
+      "typeVersion": 1,
+      "position": [1040, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.needs_scheduling }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-needs-schedule",
+      "name": "📅 Precisa Agendar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1240, 400]
+    },
+    {
+      "parameters": {
+        "url": "https://n8n-n8n.c9ewnj.easypanel.host/webhook/master_bot",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "user_number",
+              "value": "={{ $json.user_number }}"
+            },
+            {
+              "name": "message",
+              "value": "agendar consulta criminal"
+            },
+            {
+              "name": "current_state",
+              "value": "FREE"
+            },
+            {
+              "name": "case_context",
+              "value": "={{ $json.subtype }}"
+            }
+          ]
+        }
+      },
+      "id": "trigger-scheduling",
+      "name": "📅 Disparar Agendamento",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1440, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"response\": $json.response, \"urgency\": $json.urgency_level, \"needs_immediate_contact\": $json.needs_immediate_contact, \"case_analysis\": { \"viability\": $json.viability, \"success_chance\": $json.success_chance, \"estimated_cost\": $json.estimated_cost }, \"next_steps\": $json.next_steps } }}"
+      },
+      "id": "final-criminal-response",
+      "name": "⚖️ Resposta Criminal Final",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1640, 400]
+    }
+  ],
+  "connections": {
+    "⚖️ Webhook Criminal Avançado": {
+      "main": [
+        [
+          {
+            "node": "⚖️ Super Processador Criminal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚖️ Super Processador Criminal": {
+      "main": [
+        [
+          {
+            "node": "🚨 Caso Urgente?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚨 Caso Urgente?": {
+      "main": [
+        [
+          {
+            "node": "📱 WhatsApp Dr. JM",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📧 Email Urgente Dr. JM",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💾 Salvar Caso Criminal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📧 Email Urgente Dr. JM": {
+      "main": [
+        [
+          {
+            "node": "💾 Salvar Caso Criminal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📱 WhatsApp Dr. JM": {
+      "main": [
+        [
+          {
+            "node": "💾 Salvar Caso Criminal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 Salvar Caso Criminal": {
+      "main": [
+        [
+          {
+            "node": "📅 Precisa Agendar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📅 Precisa Agendar?": {
+      "main": [
+        [
+          {
+            "node": "📅 Disparar Agendamento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "⚖️ Resposta Criminal Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📅 Disparar Agendamento": {
+      "main": [
+        [
+          {
+            "node": "⚖️ Resposta Criminal Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "1"
+}

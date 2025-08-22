@@ -1,0 +1,318 @@
+{
+  "name": "🤖 MASTER BOT - Conversa Completa JM ADVOGADOS",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "master_bot",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-master",
+      "name": "📱 Webhook Master",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🧠 PROCESSADOR MESTRE - Toda a inteligência aqui!\nconst inputData = $input.all()[0].json;\n\nconst userNumber = inputData.user_number;\nconst message = inputData.message;\nconst currentState = inputData.current_state || 'FREE';\nconst stateData = inputData.state_data || {};\n\nconsole.log('🤖 MASTER BOT processando:', userNumber, message.substring(0, 50));\n\n// ========================\n// 🎯 CLASSIFICAÇÃO INTELIGENTE\n// ========================\n\nfunction classifyIntent(msg) {\n  const msgLower = msg.toLowerCase();\n  \n  // 🚨 CRIMINAL - Máxima prioridade\n  const criminalKeywords = [\n    'preso', 'flagrante', 'custódia', 'delegacia', 'inquérito',\n    'crime', 'processo criminal', 'recurso', 'apelação', 'condenado'\n  ];\n  \n  // 🎓 FIES - Especialidade\n  const fiesKeywords = [\n    'fies', 'financiamento', 'faculdade', 'bloqueado', 'suspenso'\n  ];\n  \n  // 🏠 FAMÍLIA\n  const familiaKeywords = [\n    'divórcio', 'separação', 'guarda', 'pensão', 'violência'\n  ];\n  \n  // 💥 ACIDENTES\n  const acidenteKeywords = [\n    'acidente', 'bateu', 'colisão', 'seguro', 'indenização'\n  ];\n  \n  // 📅 AGENDAMENTO\n  const agendamentoKeywords = [\n    'agendar', 'marcar', 'consulta', 'horário', 'disponível'\n  ];\n  \n  // 📋 LISTAR AGENDAMENTOS\n  const listarKeywords = [\n    'quando', 'meu agendamento', 'minha consulta', 'marcado'\n  ];\n  \n  // ❌ CANCELAR\n  const cancelarKeywords = [\n    'cancelar', 'desmarcar', 'remarcar'\n  ];\n  \n  // Classificação por prioridade\n  if (criminalKeywords.some(k => msgLower.includes(k))) return 'criminal';\n  if (fiesKeywords.some(k => msgLower.includes(k))) return 'fies';\n  if (familiaKeywords.some(k => msgLower.includes(k))) return 'familia';\n  if (acidenteKeywords.some(k => msgLower.includes(k))) return 'acidente';\n  if (agendamentoKeywords.some(k => msgLower.includes(k))) return 'schedule';\n  if (listarKeywords.some(k => msgLower.includes(k))) return 'list_meetings';\n  if (cancelarKeywords.some(k => msgLower.includes(k))) return 'cancel';\n  \n  // Saudações\n  if (msgLower.match(/^(oi|olá|bom dia|boa tarde|boa noite)$/)) return 'greeting';\n  \n  return 'legal'; // Dúvida jurídica geral\n}\n\n// ========================\n// 🔄 GERENCIAMENTO DE ESTADO\n// ========================\n\nfunction processState(intent, currentState, message, stateData) {\n  // Se está em processo de agendamento, continuar\n  if (['SCHED_NAME', 'SCHED_PERIOD', 'SCHED_DATE', 'SCHED_SLOT'].includes(currentState)) {\n    return {\n      action: 'continue_schedule',\n      nextState: getNextScheduleState(currentState),\n      data: stateData\n    };\n  }\n  \n  // Novo processo baseado na intenção\n  switch(intent) {\n    case 'schedule':\n      return {\n        action: 'start_schedule',\n        nextState: 'SCHED_NAME',\n        data: {}\n      };\n      \n    case 'criminal':\n    case 'fies':\n    case 'familia':\n    case 'acidente':\n      return {\n        action: 'qualify_case',\n        nextState: 'QUALIFYING',\n        data: { area: intent }\n      };\n      \n    case 'list_meetings':\n      return {\n        action: 'list_meetings',\n        nextState: 'FREE',\n        data: {}\n      };\n      \n    case 'cancel':\n      return {\n        action: 'start_cancel',\n        nextState: 'CANCEL_SELECT',\n        data: {}\n      };\n      \n    default:\n      return {\n        action: 'general_response',\n        nextState: 'FREE',\n        data: {}\n      };\n  }\n}\n\nfunction getNextScheduleState(current) {\n  const flow = {\n    'SCHED_NAME': 'SCHED_PERIOD',\n    'SCHED_PERIOD': 'SCHED_DATE',\n    'SCHED_DATE': 'SCHED_SLOT',\n    'SCHED_SLOT': 'SCHED_CONFIRM'\n  };\n  return flow[current] || 'FREE';\n}\n\n// ========================\n// 🎯 PROCESSAMENTO PRINCIPAL\n// ========================\n\nconst intent = classifyIntent(message);\nconst stateResult = processState(intent, currentState, message, stateData);\n\n// Detectar urgência\nconst urgentKeywords = ['preso', 'flagrante', 'violência', 'ameaça', 'urgente'];\nconst isUrgent = urgentKeywords.some(k => message.toLowerCase().includes(k));\n\n// Resultado final\nconst result = {\n  user_number: userNumber,\n  message: message,\n  intent: intent,\n  current_state: currentState,\n  next_state: stateResult.nextState,\n  action: stateResult.action,\n  state_data: stateResult.data,\n  is_urgent: isUrgent,\n  priority: isUrgent ? 'high' : 'normal',\n  timestamp: new Date().toISOString(),\n  needs_human_contact: isUrgent,\n  \n  // Dados para próximos nós\n  route_to: stateResult.action,\n  area: stateResult.data.area || 'geral'\n};\n\nconsole.log('🧠 Processamento completo:', result);\n\nreturn result;"
+      },
+      "id": "master-processor",
+      "name": "🧠 Processador Master",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.route_to }}",
+              "operation": "equal",
+              "value2": "qualify_case"
+            }
+          ]
+        }
+      },
+      "id": "route-qualify",
+      "name": "🎯 Rota Qualificação",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.route_to }}",
+              "operation": "equal",
+              "value2": "start_schedule"
+            }
+          ]
+        }
+      },
+      "id": "route-schedule",
+      "name": "📅 Rota Agendamento",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [640, 500]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.area === 'criminal' ? 'https://n8n-n8n.c9ewnj.easypanel.host/webhook/qualificacao_criminal' : $json.area === 'fies' ? 'https://n8n-n8n.c9ewnj.easypanel.host/webhook/qualificacao_fies' : $json.area === 'familia' ? 'https://n8n-n8n.c9ewnj.easypanel.host/webhook/qualificacao_familia' : 'https://n8n-n8n.c9ewnj.easypanel.host/webhook/qualificacao_acidente' }}",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "user_number",
+              "value": "={{ $json.user_number }}"
+            },
+            {
+              "name": "message",
+              "value": "={{ $json.message }}"
+            },
+            {
+              "name": "case_type",
+              "value": "={{ $json.area }}"
+            },
+            {
+              "name": "timestamp",
+              "value": "={{ $json.timestamp }}"
+            }
+          ]
+        }
+      },
+      "id": "call-qualification",
+      "name": "🔥 Chamar Qualificação Específica",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [840, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 📅 SISTEMA DE AGENDAMENTO COMPLETO\nconst inputData = $input.all()[0].json;\n\nconst userNumber = inputData.user_number;\nconst message = inputData.message;\nconst currentState = inputData.current_state;\nconst stateData = inputData.state_data || {};\n\nconsole.log('📅 Processando agendamento:', currentState);\n\nlet response = '';\nlet nextState = 'FREE';\nlet newData = { ...stateData };\nlet needsGoogleCalendar = false;\n\nswitch(currentState) {\n  case 'SCHED_NAME':\n    // Primeira etapa: capturar nome\n    newData.client_name = message;\n    nextState = 'SCHED_PERIOD';\n    response = `Olá ${message}! 👋\\n\\nPara agendar sua consulta, preciso saber:\\n\\n📅 Você prefere:\\n\\n1️⃣ Manhã (8h às 12h)\\n2️⃣ Tarde (13h às 17h)\\n\\nDigite 1 ou 2:`;\n    break;\n    \n  case 'SCHED_PERIOD':\n    // Segunda etapa: período\n    const period = message === '1' ? 'manha' : message === '2' ? 'tarde' : null;\n    if (!period) {\n      response = '❌ Por favor, digite 1 para manhã ou 2 para tarde:';\n      nextState = 'SCHED_PERIOD';\n    } else {\n      newData.period = period;\n      nextState = 'SCHED_DATE';\n      response = `✅ ${period === 'manha' ? 'Manhã' : 'Tarde'} selecionado!\\n\\n📅 Agora me diga a data desejada:\\n\\nExemplo: 25/01/2024\\n\\nOu digite:\\n• HOJE\\n• AMANHÃ`;\n    }\n    break;\n    \n  case 'SCHED_DATE':\n    // Terceira etapa: data\n    let selectedDate = '';\n    if (message.toLowerCase() === 'hoje') {\n      selectedDate = new Date().toISOString().split('T')[0];\n    } else if (message.toLowerCase() === 'amanhã') {\n      const tomorrow = new Date();\n      tomorrow.setDate(tomorrow.getDate() + 1);\n      selectedDate = tomorrow.toISOString().split('T')[0];\n    } else {\n      // Tentar parsear data DD/MM/YYYY\n      const dateMatch = message.match(/(\\d{1,2})\\/(\\d{1,2})\\/(\\d{4})/);\n      if (dateMatch) {\n        const [, day, month, year] = dateMatch;\n        selectedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;\n      }\n    }\n    \n    if (!selectedDate) {\n      response = '❌ Data inválida. Use o formato DD/MM/AAAA ou digite HOJE/AMANHÃ:';\n      nextState = 'SCHED_DATE';\n    } else {\n      newData.date = selectedDate;\n      nextState = 'SCHED_SLOT';\n      needsGoogleCalendar = true; // Vamos buscar horários disponíveis\n      response = `📅 Data ${selectedDate} selecionada!\\n\\n⏰ Buscando horários disponíveis...`;\n    }\n    break;\n    \n  case 'SCHED_SLOT':\n    // Quarta etapa: horário específico\n    newData.time_slot = message;\n    nextState = 'SCHED_CONFIRM';\n    response = `✅ RESUMO DO AGENDAMENTO:\\n\\n👤 Nome: ${newData.client_name}\\n📅 Data: ${newData.date}\\n⏰ Horário: ${message}\\n\\n✅ Confirmar agendamento?\\n\\nDigite SIM para confirmar ou NÃO para cancelar.`;\n    break;\n    \n  case 'SCHED_CONFIRM':\n    if (message.toLowerCase() === 'sim') {\n      nextState = 'FREE';\n      needsGoogleCalendar = true; // Criar evento no Google Calendar\n      response = `🎉 AGENDAMENTO CONFIRMADO!\\n\\n✅ Sua consulta está marcada:\\n📅 ${newData.date}\\n⏰ ${newData.time_slot}\\n\\n📧 Você receberá um email de confirmação em breve.\\n\\n💬 Precisa de mais alguma coisa?`;\n    } else {\n      nextState = 'FREE';\n      response = `❌ Agendamento cancelado.\\n\\n💬 Posso te ajudar com mais alguma coisa?`;\n    }\n    break;\n    \n  default:\n    response = `📅 Vamos agendar sua consulta!\\n\\n👤 Por favor, me diga seu nome completo:`;\n    nextState = 'SCHED_NAME';\n}\n\n// Resultado\nconst result = {\n  user_number: userNumber,\n  current_state: currentState,\n  next_state: nextState,\n  state_data: newData,\n  response: response,\n  needs_google_calendar: needsGoogleCalendar,\n  calendar_action: currentState === 'SCHED_DATE' ? 'check_availability' : currentState === 'SCHED_CONFIRM' && message.toLowerCase() === 'sim' ? 'create_event' : null,\n  processed_at: new Date().toISOString()\n};\n\nconsole.log('📅 Agendamento processado:', result);\n\nreturn result;"
+      },
+      "id": "schedule-processor",
+      "name": "📅 Processador Agendamento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [840, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.needs_google_calendar }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-calendar-need",
+      "name": "📅 Precisa Google Calendar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1040, 400]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "resource": "calendar",
+        "operation": "getAll",
+        "calendarId": "primary",
+        "start": "={{ $json.state_data.date }}T00:00:00.000Z",
+        "end": "={{ $json.state_data.date }}T23:59:59.000Z"
+      },
+      "id": "google-calendar",
+      "name": "📅 Google Calendar",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [1240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT OR REPLACE INTO clients (whatsapp_number, name, state, state_data, last_message, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+        "parameters": {
+          "parameters": [
+            {
+              "name": "whatsapp_number",
+              "value": "={{ $json.user_number }}"
+            },
+            {
+              "name": "name",
+              "value": "={{ $json.state_data.client_name || 'Cliente' }}"
+            },
+            {
+              "name": "state",
+              "value": "={{ $json.next_state }}"
+            },
+            {
+              "name": "state_data",
+              "value": "={{ JSON.stringify($json.state_data) }}"
+            },
+            {
+              "name": "last_message",
+              "value": "={{ $json.message }}"
+            },
+            {
+              "name": "updated_at",
+              "value": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      },
+      "id": "save-database",
+      "name": "💾 Salvar no Banco",
+      "type": "n8n-nodes-base.sqlite",
+      "typeVersion": 1,
+      "position": [1040, 600]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"reply\": $json.response, \"next_state\": $json.next_state, \"state_data\": $json.state_data } }}"
+      },
+      "id": "final-response",
+      "name": "📱 Resposta Final",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1440, 400]
+    }
+  ],
+  "connections": {
+    "📱 Webhook Master": {
+      "main": [
+        [
+          {
+            "node": "🧠 Processador Master",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧠 Processador Master": {
+      "main": [
+        [
+          {
+            "node": "🎯 Rota Qualificação",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📅 Rota Agendamento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎯 Rota Qualificação": {
+      "main": [
+        [
+          {
+            "node": "🔥 Chamar Qualificação Específica",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💾 Salvar no Banco",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📅 Rota Agendamento": {
+      "main": [
+        [
+          {
+            "node": "📅 Processador Agendamento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💾 Salvar no Banco",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📅 Processador Agendamento": {
+      "main": [
+        [
+          {
+            "node": "📅 Precisa Google Calendar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📅 Precisa Google Calendar?": {
+      "main": [
+        [
+          {
+            "node": "📅 Google Calendar",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💾 Salvar no Banco",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📅 Google Calendar": {
+      "main": [
+        [
+          {
+            "node": "💾 Salvar no Banco",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 Salvar no Banco": {
+      "main": [
+        [
+          {
+            "node": "📱 Resposta Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔥 Chamar Qualificação Específica": {
+      "main": [
+        [
+          {
+            "node": "💾 Salvar no Banco",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "1"
+}
