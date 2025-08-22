@@ -1,15 +1,9 @@
-Flask==3.0.3
-APScheduler==3.10.4
-requests==2.32.3
-google-api-python-client==2.143.0
-google-auth==2.34.0
-google-auth-httplib2==0.2.0
-python-dotenv==1.0.1
-gunicorn==22.0.0
+# 🚀 DEPENDÊNCIAS MÍNIMAS - n8n Centralized Bot
+# Apenas o essencial para receber webhooks e chamar n8n
 
-# IA (Gemini)
-google-generativeai==0.7.2
+Flask==2.3.3
+requests==2.31.0
+python-dotenv==1.0.0
 
-# Validação e Sanitização
-html-sanitizer==2.4.1
-
+# Opcional para desenvolvimento
+gunicorn==21.2.0

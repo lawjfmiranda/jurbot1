@@ -1,2 +1,0 @@
-﻿# Makes ADV a package
-

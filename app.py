@@ -1,577 +1,187 @@
-﻿import os
-import json
+"""
+🚀 BOT SIMPLIFICADO - Tudo centralizado no n8n!
+
+Este arquivo substitui todo o app.py complexo.
+Agora o n8n faz TUDO: conversa, agendamento, qualificação, banco de dados!
+"""
+
+from flask import Flask, request, jsonify
+import requests
 import logging
-import uuid
-import contextvars
-import time
-from typing import Any, Dict, List, Optional
-
-from flask import Flask, jsonify, request
-
+import os
 from dotenv import load_dotenv
-import database
-from chatbot_logic import Chatbot
-import whatsapp_service
-import scheduler as jobs_scheduler
-from utils.validators import InputValidator, validate_webhook_payload, sanitize_search_query
-from utils.secure_logging import log_webhook_safely, mask_sensitive_data
-from utils.rate_limiter import create_rate_limiter
-from utils.metrics import metrics, health_checker, track_time, track_counter
 
-
-EVOLUTION_WEBHOOK_TOKEN = os.getenv("EVOLUTION_WEBHOOK_TOKEN")
-ADMIN_WHATSAPP = (os.getenv("ADMIN_WHATSAPP") or "").strip()
-
+# Carregar variáveis de ambiente
+load_dotenv()
 
 app = Flask(__name__)
-chatbot = Chatbot()
 
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
-logging.basicConfig(
-    level=getattr(logging, LOG_LEVEL, logging.INFO),
-    format="%(asctime)s %(levelname)s %(name)s - %(message)s | %(req_id)s",
-)
+# Configuração de logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
+# Configurações
+N8N_BASE_URL = os.getenv("N8N_BASE_URL", "https://n8n-n8n.c9ewnj.easypanel.host")
+EVOLUTION_API_URL = os.getenv("EVOLUTION_API_URL")
+EVOLUTION_API_KEY = os.getenv("EVOLUTION_API_KEY")
+EVOLUTION_INSTANCE = os.getenv("EVOLUTION_INSTANCE_NAME")
 
-class RequestIdFilter(logging.Filter):
-    def filter(self, record: logging.LogRecord) -> bool:
-        if not hasattr(record, "req_id"):
-            try:
-                record.req_id = _request_id_var.get()
-            except Exception:
-                record.req_id = "-"
-        return True
-
-
-class RequestIdFormatter(logging.Formatter):
-    def format(self, record: logging.LogRecord) -> str:
-        if not hasattr(record, "req_id"):
-            record.req_id = "-"
-        return super().format(record)
-
-
-def _install_req_id_formatter() -> None:
-    root_logger = logging.getLogger()
-    for handler in list(root_logger.handlers):
-        fmt = handler.formatter._fmt if handler.formatter else "%(asctime)s %(levelname)s %(name)s - %(message)s | %(req_id)s"
-        datefmt = handler.formatter.datefmt if handler.formatter else None
-        handler.setFormatter(RequestIdFormatter(fmt=fmt, datefmt=datefmt))
-    for handler in list(app.logger.handlers):
-        fmt = handler.formatter._fmt if handler.formatter else "%(asctime)s %(levelname)s %(name)s - %(message)s | %(req_id)s"
-        datefmt = handler.formatter.datefmt if handler.formatter else None
-        handler.setFormatter(RequestIdFormatter(fmt=fmt, datefmt=datefmt))
-
-
-_req_filter = RequestIdFilter()
-logging.getLogger().addFilter(_req_filter)
-app.logger.addFilter(_req_filter)
-_install_req_id_formatter()
-
-# Context var para req_id
-_request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("req_id", default="-")
-
-# Rate limiter robusto e persistente
-_rate_limiter = None
-_MIN_INTERVAL_SECONDS = float(os.getenv("MIN_MSG_INTERVAL", "0.5"))
-# Pause control
-_bot_paused_until: float | None = None
-
-
-def _normalize_digits(value: Optional[str]) -> Optional[str]:
-    if value is None:
-        return None
-    import re as _re
-    digits = _re.sub(r"\D+", "", value)
-    return digits or None
-
-
-def _is_bot_paused_now() -> bool:
-    if _bot_paused_until is None:
+def send_whatsapp_message(number: str, message: str):
+    """Enviar mensagem via Evolution API."""
+    try:
+        url = f"{EVOLUTION_API_URL}/message/sendText/{EVOLUTION_INSTANCE}"
+        
+        payload = {
+            "number": number,
+            "text": message
+        }
+        
+        headers = {
+            "Content-Type": "application/json",
+            "apikey": EVOLUTION_API_KEY
+        }
+        
+        response = requests.post(url, json=payload, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            logger.info(f"✅ Mensagem enviada para {number}")
+            return True
+        else:
+            logger.error(f"❌ Erro ao enviar mensagem: {response.status_code}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"💥 Erro no WhatsApp: {e}")
         return False
-    return time.time() < _bot_paused_until
 
+@app.route('/webhook/evolution', methods=['POST'])
+def webhook_evolution():
+    """
+    🎯 WEBHOOK ULTRA-SIMPLIFICADO
+    
+    Apenas recebe a mensagem e manda para o n8n.
+    O n8n faz TODO o resto!
+    """
+    try:
+        data = request.json
+        logger.info(f"📨 Webhook recebido: {data}")
+        
+        # Extrair dados da mensagem
+        if not data or 'data' not in data:
+            return jsonify({"status": "ignored", "reason": "no_data"}), 200
+            
+        message_data = data['data']
+        
+        # Verificar se é mensagem de texto
+        if message_data.get('messageType') != 'textMessage':
+            return jsonify({"status": "ignored", "reason": "not_text"}), 200
+        
+        # Extrair informações
+        user_number = message_data.get('key', {}).get('remoteJid', '').replace('@s.whatsapp.net', '')
+        message_text = message_data.get('message', {}).get('conversation', '')
+        
+        if not user_number or not message_text:
+            return jsonify({"status": "ignored", "reason": "missing_data"}), 200
+        
+        logger.info(f"📱 Processando: {user_number} -> {message_text[:50]}...")
+        
+        # 🚀 ENVIAR TUDO PARA O N8N MASTER!
+        n8n_response = send_to_n8n_master(user_number, message_text)
+        
+        if n8n_response and 'reply' in n8n_response:
+            # Enviar resposta via WhatsApp
+            success = send_whatsapp_message(user_number, n8n_response['reply'])
+            
+            return jsonify({
+                "status": "processed",
+                "n8n_response": n8n_response,
+                "whatsapp_sent": success
+            }), 200
+        else:
+            logger.error("❌ n8n não retornou resposta válida")
+            return jsonify({"status": "error", "reason": "n8n_failed"}), 500
+            
+    except Exception as e:
+        logger.error(f"💥 Erro no webhook: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
-def _pause_bot(minutes: Optional[int]) -> str:
-    global _bot_paused_until
-    if minutes is None or minutes <= 0:
-        _bot_paused_until = float("inf")
-        return "Bot pausado por tempo indeterminado. Envie '#resume' para retomar."
-    _bot_paused_until = time.time() + (minutes * 60)
-    return f"Bot pausado por {minutes} minuto(s). Envie '#resume' para retomar."
-
-
-def _resume_bot() -> str:
-    global _bot_paused_until
-    _bot_paused_until = None
-    return "Bot retomado."
-
-
-def _extract_number(payload: Dict[str, Any]) -> Optional[str]:
-    # Prefer event-style contact id first (avoid using 'sender' which is the instance number)
-    number: Optional[str] = None
-    if isinstance(payload.get("data"), dict):
-        data = payload["data"]
-        # messages[0].key.remoteJid
-        if isinstance(data.get("messages"), list) and data["messages"]:
-            first = data["messages"][0]
-            key = isinstance(first.get("key"), dict) and first.get("key") or {}
-            number = key.get("remoteJid")
-        if not number:
-            key = isinstance(data.get("key"), dict) and data.get("key") or {}
-            number = key.get("remoteJid") or data.get("remoteJid")
-    # Fallbacks for other payload shapes
-    if not number:
-        number = (
-            payload.get("number")
-            or payload.get("from")
-            or payload.get("chatId")
-            or payload.get("remoteJid")
-            or None  # do NOT use 'sender' as it may be the instance number
-        )
-    if not number:
+def send_to_n8n_master(user_number: str, message: str, current_state: str = "FREE"):
+    """
+    🎯 ENVIAR PARA O N8N MASTER
+    
+    O n8n faz TUDO:
+    - Classifica a mensagem
+    - Gerencia estados
+    - Faz agendamento
+    - Salva no banco
+    - Retorna resposta pronta
+    """
+    try:
+        url = f"{N8N_BASE_URL}/webhook/master_bot"
+        
+        payload = {
+            "user_number": user_number,
+            "message": message,
+            "current_state": current_state,
+            "timestamp": "2024-01-15T10:30:00Z"
+        }
+        
+        logger.info(f"🚀 Enviando para n8n master: {payload}")
+        
+        response = requests.post(url, json=payload, timeout=30)
+        
+        if response.status_code == 200:
+            result = response.json()
+            logger.info(f"✅ n8n master respondeu: {result}")
+            return result
+        else:
+            logger.error(f"❌ n8n master erro: {response.status_code} - {response.text}")
+            return None
+            
+    except Exception as e:
+        logger.error(f"💥 Erro ao chamar n8n master: {e}")
         return None
-    # normalize patterns like 5511999999999@c.us
-    if isinstance(number, str) and "@" in number:
-        number = number.split("@", 1)[0]
-    return number
 
-
-def _extract_text(payload: Dict[str, Any]) -> Optional[str]:
-    if "text" in payload and isinstance(payload["text"], dict):
-        t = payload["text"].get("body") or payload["text"].get("text")
-        if t:
-            return str(t)
-    # Event-style: payload.data.message
-    if isinstance(payload.get("data"), dict):
-        data = payload["data"]
-        # messages[0].message
-        if isinstance(data.get("messages"), list) and data["messages"]:
-            msg = data["messages"][0].get("message") or {}
-        else:
-            msg = data.get("message") or {}
-        if isinstance(msg, dict):
-            # conversation
-            if msg.get("conversation"):
-                return str(msg.get("conversation")).strip()
-            # extendedTextMessage
-            etm = msg.get("extendedTextMessage")
-            if isinstance(etm, dict) and etm.get("text"):
-                return str(etm.get("text")).strip()
-            # image caption
-            im = msg.get("imageMessage")
-            if isinstance(im, dict) and im.get("caption"):
-                return str(im.get("caption")).strip()
-            # buttons response
-            br = msg.get("buttonsResponseMessage")
-            if isinstance(br, dict):
-                if br.get("selectedDisplayText"):
-                    return str(br.get("selectedDisplayText")).strip()
-                if br.get("selectedId"):
-                    return str(br.get("selectedId")).strip()
-            # list response
-            lr = msg.get("listResponseMessage")
-            if isinstance(lr, dict):
-                sel = lr.get("singleSelectReply")
-                if isinstance(sel, dict) and sel.get("selectedRowId"):
-                    return str(sel.get("selectedRowId")).strip()
-    return str(
-        payload.get("message")
-        or payload.get("body")
-        or payload.get("text")
-        or payload.get("content")
-        or ""
-    ).strip()
-
-
-@app.route("/health", methods=["GET"])  # Simple healthcheck
-@track_counter("health_check")
-def health():
-    """Health check básico."""
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check simplificado."""
     return jsonify({
-        "status": "ok",
-        "timestamp": time.time(),
-        "uptime": time.time() - metrics.start_time
-    })
+        "status": "healthy",
+        "version": "2.0-n8n-centralized",
+        "n8n_url": N8N_BASE_URL,
+        "features": [
+            "n8n master workflow",
+            "centralized conversation",
+            "automatic scheduling",
+            "case qualification",
+            "database integration"
+        ]
+    }), 200
 
+@app.route('/', methods=['GET'])
+def home():
+    """Página inicial."""
+    return """
+    <h1>🤖 JustIA Bot 2.0 - n8n Centralized</h1>
+    <p><strong>Status:</strong> ✅ Ativo</p>
+    <p><strong>Arquitetura:</strong> n8n Master Workflow</p>
+    <p><strong>Funcionalidades:</strong></p>
+    <ul>
+        <li>🧠 Inteligência centralizada no n8n</li>
+        <li>📅 Agendamento automático</li>
+        <li>⚖️ Qualificação especializada</li>
+        <li>💾 Banco de dados integrado</li>
+        <li>📧 Notificações automáticas</li>
+    </ul>
+    <p><strong>n8n URL:</strong> <a href="{}">{}</a></p>
+    """.format(N8N_BASE_URL, N8N_BASE_URL)
 
-@app.route("/health/detailed", methods=["GET"])
-def health_detailed():
-    """Health check detalhado com verificação de serviços."""
-    # Verificar token admin se configurado
-    admin_token = os.getenv("ADMIN_TOKEN")
-    if admin_token:
-        token = request.headers.get("X-Admin-Token") or request.args.get("token")
-        if token != admin_token:
-            return jsonify({"error": "unauthorized"}), 401
+if __name__ == '__main__':
+    port = int(os.getenv('PORT', 8000))
+    debug = os.getenv('FLASK_ENV') == 'development'
     
-    try:
-        service_health = health_checker.check_all_services()
-        
-        # Determinar status geral
-        overall_status = "healthy"
-        for service, health in service_health.items():
-            if health["status"] == "unhealthy":
-                overall_status = "unhealthy"
-                break
-            elif health["status"] == "degraded" and overall_status == "healthy":
-                overall_status = "degraded"
-        
-        response = {
-            "status": overall_status,
-            "timestamp": time.time(),
-            "uptime": time.time() - metrics.start_time,
-            "services": service_health
-        }
-        
-        status_code = 200 if overall_status == "healthy" else 503
-        return jsonify(response), status_code
-        
-    except Exception as e:
-        app.logger.exception("Erro no health check detalhado")
-        return jsonify({
-            "status": "unhealthy",
-            "error": str(e),
-            "timestamp": time.time()
-        }), 503
-
-
-@app.route("/metrics", methods=["GET"])
-def get_metrics():
-    """Endpoint de métricas para monitoramento."""
-    # Verificar token admin se configurado
-    admin_token = os.getenv("ADMIN_TOKEN")
-    if admin_token:
-        token = request.headers.get("X-Admin-Token") or request.args.get("token")
-        if token != admin_token:
-            return jsonify({"error": "unauthorized"}), 401
+    logger.info(f"🚀 Iniciando JustIA Bot 2.0 - n8n Centralized")
+    logger.info(f"🔗 n8n URL: {N8N_BASE_URL}")
+    logger.info(f"🌐 Porta: {port}")
     
-    try:
-        summary = metrics.get_metrics_summary()
-        
-        # Adicionar métricas específicas do rate limiter
-        if _rate_limiter and hasattr(_rate_limiter, 'get_stats'):
-            # Adicionar estatísticas do rate limiter se disponível
-            summary["rate_limiter"] = {"enabled": True}
-        else:
-            summary["rate_limiter"] = {"enabled": False}
-        
-        return jsonify(summary)
-        
-    except Exception as e:
-        app.logger.exception("Erro ao obter métricas")
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/debug/echo", methods=["GET", "POST"])
-def debug_echo():
-    token = request.headers.get("X-Webhook-Token") or request.args.get("token")
-    body = request.get_json(silent=True)
-    try:
-        raw = request.data.decode("utf-8") if request.data else ""
-    except Exception:
-        raw = ""
-    app.logger.info(
-        {
-            "debug": "echo",
-            "method": request.method,
-            "path": request.path,
-            "args": request.args.to_dict(flat=True),
-            "headers_subset": {k: request.headers.get(k) for k in ["Content-Type", "User-Agent", "X-Webhook-Token", "Content-Length"]},
-            "token": token,
-            "json_keys": list(body.keys()) if isinstance(body, dict) else None,
-            "raw_len": len(raw),
-        }
-    )
-    return jsonify({"ok": True, "received": True})
-
-
-@app.route("/webhook/evolution", methods=["POST"])
-@track_time("webhook_processing")
-def evolution_webhook():
-    # correlation id por requisição
-    req_id = request.headers.get("X-Req-Id") or str(uuid.uuid4())
-    # seta no contexto para ser capturado pelo filtro/formatter
-    _token = _request_id_var.set(req_id)
-    token = request.headers.get("X-Webhook-Token") or request.args.get("token")
-    if token and "/" in token:
-        token = token.split("/", 1)[0]
-    if EVOLUTION_WEBHOOK_TOKEN and token != EVOLUTION_WEBHOOK_TOKEN:
-        app.logger.warning("Webhook auth failed: missing/invalid token")
-        return jsonify({"error": "unauthorized"}), 401
-
-    body = request.get_json(silent=True)
-    if body is None:
-        try:
-            body = json.loads(request.data.decode("utf-8")) if request.data else {}
-        except Exception:
-            body = {}
-    app.logger.info(
-        f"Webhook received type={type(body)} keys={list(body.keys()) if isinstance(body, dict) else 'n/a'}",
-    )
-    messages: List[Dict[str, Any]] = []
-
-    # Evolution pode enviar eventos por mensagem (webhookByEvents) ou listas em 'messages'
-    if isinstance(body, dict) and isinstance(body.get("messages"), list):
-        messages = body["messages"]
-    elif isinstance(body, dict) and body.get("event"):
-        # Evento único
-        messages = [body]
-    else:
-        messages = [body]
-
-    app.logger.info(f"Webhook messages_count={len(messages)}")
-    
-    # Métricas
-    metrics.increment("webhook_requests")
-    metrics.increment("webhook_messages", len(messages))
-    
-    for idx, msg in enumerate(messages):
-        # Log webhook payload de forma segura (dados sensíveis mascarados)
-        log_webhook_safely(msg, app.logger, logging.INFO)
-        
-        # Validar estrutura básica do payload
-        if not validate_webhook_payload(msg):
-            app.logger.warning(f"Webhook payload inválido idx={idx}")
-            continue
-        
-        # Ignore messages sent by our own instance (status updates, echoes)
-        own = msg.get("fromMe") or msg.get("from_me")
-        if own is None and isinstance(msg.get("data"), dict):
-            own = msg["data"].get("key", {}).get("fromMe")
-        if str(own) in ("True", "true", "1"):
-            app.logger.debug(f"Ignored own message idx={idx}")
-            continue
-        number = _extract_number(msg)
-        text = _extract_text(msg)
-        
-        # Log ALL message attempts for debugging
-        event_type = msg.get("event", "unknown")
-        app.logger.info(f"Processing message: event='{event_type}', number='{number}', text='{text}' (len={len(text) if text else 0})")
-        
-        if not number or not text:
-            # Log de forma segura sem expor dados sensíveis
-            safe_msg = mask_sensitive_data(msg)
-            try:
-                short = json.dumps(safe_msg, ensure_ascii=False)[:300]
-            except Exception:
-                short = str(safe_msg)[:300]
-            app.logger.info(
-                f"Skipped msg idx={idx} number={'***' if number else None} text_len={(len(text) if text else 0)} payload={short}",
-            )
-            continue
-
-        # Admin commands (#pause [min], #resume, #status)
-        # Log admin check sem expor números completos
-        admin_masked = f"{ADMIN_WHATSAPP[:2]}***{ADMIN_WHATSAPP[-2:]}" if ADMIN_WHATSAPP else "None"
-        number_masked = f"{number[:2]}***{number[-2:]}" if number else "None"
-        app.logger.info(f"Checking admin: ADMIN_WHATSAPP='{admin_masked}', number='{number_masked}'")
-        
-        if ADMIN_WHATSAPP and _normalize_digits(number) == _normalize_digits(ADMIN_WHATSAPP):
-            app.logger.info(f"Admin command detected from {number_masked}: '{text}'")
-            cmd = (text or "").strip().lower()
-            if cmd.startswith("#pause") or cmd.startswith("#pausa"):
-                parts = cmd.split()
-                minutes = None
-                if len(parts) >= 2:
-                    try:
-                        minutes = int(parts[1])
-                    except Exception:
-                        minutes = None
-                app.logger.info(f"Executing pause command with minutes={minutes}")
-                ack = _pause_bot(minutes)
-                app.logger.info(f"Pause result: {ack}")
-                try:
-                    whatsapp_service.send_whatsapp_message(number, ack)
-                    app.logger.info(f"Pause ack sent successfully")
-                except Exception:
-                    app.logger.exception("admin pause ack failed")
-                continue
-            if cmd.startswith("#resume") or cmd.startswith("#retomar") or cmd.startswith("#despausar"):
-                app.logger.info(f"Executing resume command")
-                ack = _resume_bot()
-                app.logger.info(f"Resume result: {ack}")
-                try:
-                    whatsapp_service.send_whatsapp_message(number, ack)
-                    app.logger.info(f"Resume ack sent successfully")
-                except Exception:
-                    app.logger.exception("admin resume ack failed")
-                continue
-            if cmd.startswith("#status"):
-                is_paused = _is_bot_paused_now()
-                status = "pausado" if is_paused else "ativo"
-                app.logger.info(f"Status check: is_paused={is_paused}, status='{status}'")
-                try:
-                    whatsapp_service.send_whatsapp_message(number, f"Status do bot: {status}")
-                    app.logger.info(f"Status sent successfully")
-                except Exception:
-                    app.logger.exception("admin status ack failed")
-                continue
-
-        # Rate limiting robusto
-        if _rate_limiter:
-            allowed, info = _rate_limiter.is_allowed(
-                identifier=number,
-                max_requests=int(os.getenv("MAX_REQUESTS_PER_MINUTE", "20")),
-                window_seconds=60,
-                block_duration=int(os.getenv("RATE_LIMIT_BLOCK_DURATION", "300"))  # 5 min
-            )
-            
-            if not allowed:
-                reason = info.get("reason", "rate_limited")
-                if reason == "blocked":
-                    app.logger.warning(f"User {number_masked} is blocked for {info.get('remaining_seconds')}s")
-                elif reason == "rate_limited":
-                    app.logger.warning(f"Rate limit exceeded for {number_masked}: {info.get('requests_in_window')}/{info.get('max_requests')}")
-                continue
-            
-            # Log para debug (apenas em desenvolvimento)
-            if os.getenv("FLASK_ENV") == "development":
-                app.logger.debug(f"Rate limit check for {number_masked}: {info.get('requests_in_window')}/{info.get('max_requests')}")
-
-        if _is_bot_paused_now():
-            app.logger.info("Bot paused; ignoring message")
-            continue
-
-        app.logger.info(
-            f"Incoming idx={idx} number={number_masked} text='{text[:120]}'",
-        )
-        
-        # Métricas
-        metrics.increment("messages_processed")
-        metrics.record_event("messages_processed")
-        
-        try:
-            start_time = time.time()
-            responses = chatbot.handle_incoming_message(number, text)
-            processing_time = time.time() - start_time
-            
-            # Métricas de sucesso
-            metrics.record_time("chatbot_processing", processing_time)
-            metrics.increment("chatbot_success")
-            
-            # Métricas específicas por tipo de interação
-            try:
-                # Detectar se houve qualificação
-                responses_text = " ".join(responses).lower()
-                if "qualificação" in responses_text or "analisei seu caso" in responses_text:
-                    metrics.increment("lead_qualifications")
-                elif "consulta confirmada" in responses_text:
-                    metrics.increment("appointments_scheduled")
-                elif "cancelado" in responses_text:
-                    metrics.increment("appointments_cancelled")
-            except:
-                pass
-            
-        except Exception as e:
-            app.logger.exception("Error in chatbot logic")
-            
-            # Métricas de erro
-            metrics.increment("chatbot_errors")
-            
-            try:
-                import notification_service
-                notification_service.notify_error("Erro no webhook JustIA", f"Number: {number_masked}\nError: {e}")
-            except Exception:
-                pass
-            continue
-        for r in responses:
-            try:
-                whatsapp_service.send_whatsapp_message(number, r)
-                app.logger.info(
-                    f"Sent reply to {number_masked}: '{r[:120]}'",
-                )
-                
-                # Métricas de envio
-                metrics.increment("whatsapp_messages_sent")
-                
-            except Exception:
-                app.logger.exception(f"Failed to send WhatsApp message to {number_masked}")
-                metrics.increment("whatsapp_send_errors")
-
-    try:
-        return jsonify({"status": "received"})
-    finally:
-        # limpa req_id do contexto
-        try:
-            _request_id_var.reset(_token)
-        except Exception:
-            _request_id_var.set("-")
-
-
-@app.route("/admin/clients", methods=["GET"])
-def admin_clients():
-    token = request.headers.get("X-Admin-Token") or request.args.get("token")
-    if token != os.getenv("ADMIN_TOKEN"):
-        return jsonify({"error": "unauthorized"}), 401
-    
-    # Sanitizar query de busca
-    q = request.args.get("q")
-    if q:
-        q = sanitize_search_query(q)
-        if not q:  # Se sanitização resultou em string vazia
-            return jsonify({"error": "invalid search query"}), 400
-    
-    try:
-        rows = database.list_clients(q)
-        return jsonify([
-            {
-                "id": r["id"],
-                "whatsapp_number": f"{r['whatsapp_number'][:2]}***{r['whatsapp_number'][-2:]}" if r["whatsapp_number"] else None,  # Mascarar número
-                "full_name": r["full_name"],
-                "email": f"{r['email'][0]}***@{r['email'].split('@')[1]}" if r["email"] and '@' in r["email"] else r["email"],  # Mascarar email
-                "lead_priority": r["lead_priority"],
-                "created_at": r["creation_timestamp"],
-            } for r in rows
-        ])
-    except Exception as e:
-        app.logger.error(f"Erro ao listar clientes: {e}")
-        return jsonify({"error": "internal server error"}), 500
-
-
-@app.route("/admin/meetings", methods=["GET"])
-def admin_meetings():
-    token = request.headers.get("X-Admin-Token") or request.args.get("token")
-    if token != os.getenv("ADMIN_TOKEN"):
-        return jsonify({"error": "unauthorized"}), 401
-    number = request.args.get("number")
-    rows = database.list_meetings(whatsapp_number=number)
-    return jsonify([
-        {
-            "id": r["id"],
-            "whatsapp_number": r["whatsapp_number"],
-            "full_name": r["full_name"],
-            "event_id": r["google_calendar_event_id"],
-            "when": r["meeting_datetime"],
-            "status": r["status"],
-        } for r in rows
-    ])
-
-def create_app() -> Flask:
-    global _rate_limiter
-    
-    load_dotenv()
-    database.initialize_database()
-    
-    # Inicializar rate limiter robusto
-    try:
-        db_path = os.getenv("DB_PATH", os.path.join(os.path.dirname(__file__), "advocacia.db"))
-        _rate_limiter = create_rate_limiter(db_path)
-        app.logger.info("Rate limiter inicializado com sucesso")
-    except Exception as e:
-        app.logger.error(f"Erro ao inicializar rate limiter: {e}")
-    
-    # Start scheduler background jobs
-    jobs_scheduler.start_scheduler()
-    return app
-
-
-# Ensure app is initialized when imported by WSGI servers (e.g., Gunicorn)
-application = create_app()
-
-
-if __name__ == "__main__":
-    # Avoid running scheduler twice with Flask reloader
-    use_reloader = os.getenv("FLASK_ENV") == "development"
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "8000")), use_reloader=use_reloader)
-
-
+    app.run(host='0.0.0.0', port=port, debug=debug)
