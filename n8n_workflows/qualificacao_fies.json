@@ -1,0 +1,66 @@
+{
+  "name": "Qualificação - FIES (Especialidade JM ADVOGADOS)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "qualificacao_fies",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-fies",
+      "name": "Webhook FIES",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Processar caso FIES - Especialidade JM ADVOGADOS\nconst inputData = $input.all()[0].json;\n\nconst userNumber = inputData.user_number;\nconst message = inputData.message.toLowerCase();\nconst clientInfo = inputData.client_info || {};\n\nconsole.log('🎓 Processando caso FIES para:', userNumber);\n\n// Identificar problema específico do FIES\nlet problemType = 'geral';\nlet urgency = 'normal';\nlet specificQuestions = [];\nlet estimatedValue = 'medio';\n\n// FIES bloqueado/suspenso\nif (message.includes('bloqueado') || message.includes('suspenso') || message.includes('cancelado')) {\n  problemType = 'bloqueio';\n  urgency = 'alta';\n  estimatedValue = 'alto';\n  specificQuestions = [\n    'Quando foi bloqueado/suspenso?',\n    'Recebeu notificação do motivo?',\n    'Estava em dia com documentação?',\n    'Qual semestre estava cursando?'\n  ];\n}\n\n// Problemas com documentação\nelse if (message.includes('documentação') || message.includes('documento') || message.includes('pendência')) {\n  problemType = 'documentacao';\n  urgency = 'normal';\n  specificQuestions = [\n    'Quais documentos estão pendentes?',\n    'Já tentou regularizar?',\n    'Há prazo limite?',\n    'A faculdade orientou sobre algo?'\n  ];\n}\n\n// Problemas de cobrança indevida\nelse if (message.includes('cobrança') || message.includes('cobrando') || message.includes('pagar')) {\n  problemType = 'cobranca';\n  urgency = 'normal';\n  estimatedValue = 'alto';\n  specificQuestions = [\n    'O que está sendo cobrado?',\n    'Qual o valor da cobrança?',\n    'FIES deveria cobrir essa despesa?',\n    'Tem comprovantes dos pagamentos?'\n  ];\n}\n\n// Renovação FIES\nelse if (message.includes('renovação') || message.includes('renovar') || message.includes('semestre')) {\n  problemType = 'renovacao';\n  urgency = 'normal';\n  specificQuestions = [\n    'Para qual semestre é a renovação?',\n    'Houve mudança na renda familiar?',\n    'CadÚnico está atualizado?',\n    'Já tentou fazer pelo FIES Seleção?'\n  ];\n}\n\n// Transferência de curso/instituição\nelse if (message.includes('transferir') || message.includes('transferência') || message.includes('mudança')) {\n  problemType = 'transferencia';\n  urgency = 'normal';\n  specificQuestions = [\n    'Quer transferir para qual curso/faculdade?',\n    'A nova instituição aceita FIES?',\n    'Já conversou com as duas faculdades?',\n    'Qual o motivo da transferência?'\n  ];\n}\n\n// Conclusão do curso - quitação\nelse if (message.includes('formei') || message.includes('quitação') || message.includes('pagamento')) {\n  problemType = 'quitacao';\n  urgency = 'normal';\n  estimatedValue = 'alto';\n  specificQuestions = [\n    'Quando se formou?',\n    'Já recebeu boleto de quitação?',\n    'Qual valor está sendo cobrado?',\n    'Tem dúvidas sobre correção monetária?'\n  ];\n}\n\n// Gerar resposta específica para FIES\nlet response = '';\n\nswitch(problemType) {\n  case 'bloqueio':\n    response = `🚫 FIES BLOQUEADO/SUSPENSO\\n\\nJM ADVOGADOS tem experiência em desbloqueio de FIES.\\n\\n✅ Podemos conseguir:\\n• Desbloqueio do financiamento\\n• Regularização da situação\\n• Renegociação com FNDE\\n• Manutenção dos estudos\\n\\n📋 Informações importantes:\\n${specificQuestions.map((q, i) => `${i+1}. ${q}`).join('\\n')}\\n\\n⏰ URGENTE: Quanto antes agirmos, melhor!\\n\\n📞 Vamos resolver seu FIES rapidamente!`;\n    break;\n    \n  case 'documentacao':\n    response = `📄 PROBLEMAS DE DOCUMENTAÇÃO FIES\\n\\nVamos regularizar sua situação documental.\\n\\n✅ Orientação completa:\\n• Análise de pendências\\n• Orientação sobre documentos\\n• Intermediação com FNDE\\n• Recurso administrativo\\n\\n📋 Situação atual:\\n${specificQuestions.map((q, i) => `${i+1}. ${q}`).join('\\n')}\\n\\n📚 DICA: Documentação correta é fundamental!\\n\\n📞 Vamos resolver juntos!`;\n    break;\n    \n  case 'cobranca':\n    response = `💰 COBRANÇA INDEVIDA - FIES\\n\\nJM ADVOGADOS vai contestar cobrança abusiva.\\n\\n✅ Podemos buscar:\\n• Cancelamento da cobrança\\n• Devolução em dobro\\n• Danos morais\\n• Regularização do contrato\\n\\n📋 Dados da cobrança:\\n${specificQuestions.map((q, i) => `${i+1}. ${q}`).join('\\n')}\\n\\n⚖️ Se FIES deveria pagar, você não deve nada!\\n\\n📞 Vamos processar essa cobrança indevida!`;\n    break;\n    \n  case 'renovacao':\n    response = `🔄 RENOVAÇÃO DE FIES\\n\\nTe ajudamos com todas as etapas da renovação.\\n\\n✅ Suporte completo:\\n• Orientação sobre documentação\\n• Acompanhamento do processo\\n• Resolução de pendências\\n• Recurso se negado\\n\\n📋 Informações para renovação:\\n${specificQuestions.map((q, i) => `${i+1}. ${q}`).join('\\n')}\\n\\n📅 IMPORTANTE: Não perca os prazos!\\n\\n📞 Vamos garantir sua renovação!`;\n    break;\n    \n  case 'transferencia':\n    response = `↔️ TRANSFERÊNCIA DE FIES\\n\\nTransferência de FIES tem regras específicas.\\n\\n✅ Te orientamos sobre:\\n• Viabilidade da transferência\\n• Documentação necessária\\n• Trâmites com as instituições\\n• Manutenção do financiamento\\n\\n📋 Dados da transferência:\\n${specificQuestions.map((q, i) => `${i+1}. ${q}`).join('\\n')}\\n\\n🎯 Objetivo: Manter seu FIES ativo!\\n\\n📞 Vamos planejar sua transferência!`;\n    break;\n    \n  case 'quitacao':\n    response = `🎓 QUITAÇÃO DO FIES\\n\\nFormou? Vamos analisar sua quitação do FIES.\\n\\n✅ Verificação completa:\\n• Cálculo da dívida\\n• Correção monetária\\n• Possibilidade de desconto\\n• Parcelamento\\n\\n📋 Dados da quitação:\\n${specificQuestions.map((q, i) => `${i+1}. ${q}`).join('\\n')}\\n\\n💡 Muitas vezes há erro no cálculo!\\n\\n📞 Vamos revisar sua quitação!`;\n    break;\n    \n  default:\n    response = `🎓 QUESTÕES FIES\\n\\nJM ADVOGADOS é especialista em problemas de FIES.\\n\\n✅ Atuamos em:\\n• Desbloqueio de financiamento\\n• Problemas de documentação\\n• Cobranças indevidas\\n• Renovação e transferência\\n• Quitação pós-formatura\\n\\n💰 FIES é investimento no seu futuro!\\n\\n📞 Vamos resolver sua situação educacional!`;\n}\n\n// Resultado\nconst result = {\n  user_number: userNumber,\n  case_type: 'fies',\n  problem_type: problemType,\n  urgency: urgency,\n  estimated_value: estimatedValue,\n  specific_questions: specificQuestions,\n  response: response,\n  educational_specialty: true,\n  processed_at: new Date().toISOString()\n};\n\nconsole.log('📤 FIES processado:', result);\n\nreturn result;"
+      },
+      "id": "process-fies",
+      "name": "Processar FIES",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "id": "response-fies",
+      "name": "Resposta FIES",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [640, 300]
+    }
+  ],
+  "connections": {
+    "Webhook FIES": {
+      "main": [
+        [
+          {
+            "node": "Processar FIES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar FIES": {
+      "main": [
+        [
+          {
+            "node": "Resposta FIES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "1"
+}

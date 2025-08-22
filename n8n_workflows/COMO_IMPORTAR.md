@@ -16,15 +16,19 @@
 
 ### 3. Repetir para Outros Workflows
 Importe na seguinte ordem:
-- ✅ `qualificacao_geral.json` (principal)
-- ✅ `qualificacao_familia.json` (casos de família)  
-- ✅ `qualificacao_acidente.json` (acidentes)
+- ✅ `qualificacao_geral.json` (principal - casos gerais)
+- ✅ `qualificacao_criminal.json` (⚖️ especialidade Dr. JM - flagrantes, inquéritos, processos, recursos)
+- ✅ `qualificacao_familia.json` (🏠 direito das famílias - divórcio, guarda, pensão, medidas protetivas)  
+- ✅ `qualificacao_acidente.json` (💥 responsabilidade civil - acidentes, indenizações)
+- ✅ `qualificacao_fies.json` (🎓 especialidade JM - financiamento estudantil)
 
 ### 4. Verificar Webhooks Criados
 Após importar, você deve ter estes endpoints:
 - `https://n8n-n8n.c9ewnj.easypanel.host/webhook/qualificacao_geral`
-- `https://n8n-n8n.c9ewnj.easypanel.host/webhook/qualificacao_familia`  
-- `https://n8n-n8n.c9ewnj.easypanel.host/webhook/qualificacao_acidente`
+- `https://n8n-n8n.c9ewnj.easypanel.host/webhook/qualificacao_criminal` ⚖️
+- `https://n8n-n8n.c9ewnj.easypanel.host/webhook/qualificacao_familia` 🏠
+- `https://n8n-n8n.c9ewnj.easypanel.host/webhook/qualificacao_acidente` 💥
+- `https://n8n-n8n.c9ewnj.easypanel.host/webhook/qualificacao_fies` 🎓
 
 ### 5. Configurar Variável de Ambiente
 No seu `.env`, adicione:

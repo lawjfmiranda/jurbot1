@@ -62,27 +62,58 @@ class N8NIntegration:
             return {"success": False, "error": str(e)}
     
     def classify_case_for_workflow(self, message: str) -> str:
-        """Classifica o tipo de caso para escolher o workflow correto."""
+        """Classifica o tipo de caso para escolher o workflow correto baseado nas especialidades JM ADVOGADOS."""
         message_lower = message.lower()
         
-        # Casos de Direito de Família
-        if any(word in message_lower for word in ["divórcio", "separação", "guarda", "pensão", "casamento"]):
+        # 🚨 CRIMINAL/PENAL - Especialidade Dr. JM (Professor de Direito Penal)
+        criminal_keywords = [
+            "preso", "flagrante", "custódia", "delegacia", "inquérito", "investigação",
+            "processo criminal", "audiência criminal", "recurso", "apelação", "condenado",
+            "crime", "droga", "tráfico", "roubo", "furto", "homicídio", "lesão",
+            "agressão", "violência", "ameaça", "polícia", "promotor"
+        ]
+        if any(word in message_lower for word in criminal_keywords):
+            return "criminal"
+        
+        # 🏠 DIREITO DAS FAMÍLIAS
+        familia_keywords = [
+            "divórcio", "separação", "guarda", "pensão", "casamento", "união estável",
+            "filho", "visita", "alimento", "partilha", "bens", "cônjuge"
+        ]
+        if any(word in message_lower for word in familia_keywords):
             return "familia"
         
-        # Casos de Acidente/Seguro
-        elif any(word in message_lower for word in ["acidente", "bateu", "colisão", "seguro", "danos"]):
+        # 🎓 FIES - Especialidade JM ADVOGADOS
+        fies_keywords = [
+            "fies", "financiamento estudantil", "faculdade", "universidade", "curso",
+            "bloqueado", "suspenso", "documentação", "renovação", "quitação",
+            "cobrança", "fnde", "transferência"
+        ]
+        if any(word in message_lower for word in fies_keywords):
+            return "fies"
+        
+        # ⚖️ RESPONSABILIDADE CIVIL (Acidentes e Indenizações)
+        civil_keywords = [
+            "acidente", "bateu", "colisão", "seguro", "danos", "indenização",
+            "prejuízo", "material", "moral", "queda", "produto defeituoso"
+        ]
+        if any(word in message_lower for word in civil_keywords):
             return "acidente"
         
-        # Casos Trabalhistas
+        # 🛡️ MEDIDA PROTETIVA (incluído no família, mas pode ser separado)
+        if any(word in message_lower for word in ["medida protetiva", "proteção", "violência doméstica"]):
+            return "familia"  # Workflow família já trata medidas protetivas
+        
+        # 📜 RECURSOS (especialidade Dr. JM)
+        if any(word in message_lower for word in ["recurso", "apelação", "embargos"]):
+            return "criminal"  # Workflow criminal já trata recursos
+        
+        # 👔 TRABALHISTA (não é especialidade principal, mas atendemos)
         elif any(word in message_lower for word in ["trabalho", "demissão", "rescisão", "fgts", "salário"]):
             return "trabalhista"
         
-        # Casos Criminais
-        elif any(word in message_lower for word in ["agressão", "violência", "ameaça", "roubo", "furto"]):
-            return "criminal"
-        
-        # Casos Cíveis Gerais
-        elif any(word in message_lower for word in ["contrato", "dívida", "cobrança", "indenização"]):
+        # 📋 CASOS CÍVEIS GERAIS
+        elif any(word in message_lower for word in ["contrato", "dívida", "cobrança"]):
             return "civel"
         
         # Default: qualificação geral

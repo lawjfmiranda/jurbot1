@@ -1,0 +1,113 @@
+{
+  "name": "Qualificação - Ação Penal e Criminal",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "qualificacao_criminal",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-criminal",
+      "name": "Webhook Criminal",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Processar caso criminal - JM ADVOGADOS especialista\nconst inputData = $input.all()[0].json;\n\nconst userNumber = inputData.user_number;\nconst message = inputData.message.toLowerCase();\nconst clientInfo = inputData.client_info || {};\n\nconsole.log('⚖️ Processando caso criminal para:', userNumber);\n\n// Identificar subtipo criminal específico\nlet subtype = 'geral';\nlet urgency = 'normal';\nlet phase = 'inicial';\nlet specificQuestions = [];\nlet drJMSpecialty = false; // Indica se é área de especialidade do Dr. JM\n\n// FLAGRANTE - URGENTÍSSIMO\nif (message.includes('preso') || message.includes('flagrante') || message.includes('custódia')) {\n  subtype = 'flagrante';\n  urgency = 'urgentissimo';\n  phase = 'flagrante';\n  drJMSpecialty = true;\n  specificQuestions = [\n    'Onde está preso?',\n    'Quando foi a prisão?',\n    'Já teve audiência de custódia?',\n    'Qual o crime alegado?'\n  ];\n}\n\n// INQUÉRITO POLICIAL\nelse if (message.includes('inquérito') || message.includes('delegacia') || message.includes('investigação')) {\n  subtype = 'inquerito';\n  urgency = 'alta';\n  phase = 'policial';\n  drJMSpecialty = true;\n  specificQuestions = [\n    'Foi intimado como suspeito ou testemunha?',\n    'Qual delegacia?',\n    'Já prestou depoimento?',\n    'Tem advogado acompanhando?'\n  ];\n}\n\n// PROCESSO CRIMINAL EM ANDAMENTO\nelse if (message.includes('processo') || message.includes('audiência') || message.includes('julgamento')) {\n  subtype = 'processo';\n  urgency = 'alta';\n  phase = 'processual';\n  drJMSpecialty = true;\n  specificQuestions = [\n    'Em que fase está o processo?',\n    'Tem advogado constituído?',\n    'Próxima audiência marcada?',\n    'Qual vara criminal?'\n  ];\n}\n\n// RECURSOS - Especialidade Dr. JM\nelse if (message.includes('recurso') || message.includes('apelação') || message.includes('condenado')) {\n  subtype = 'recurso';\n  urgency = 'alta';\n  phase = 'recursal';\n  drJMSpecialty = true;\n  specificQuestions = [\n    'Qual foi a sentença?',\n    'Quando foi publicada?',\n    'Qual o prazo para recurso?',\n    'Tem as peças do processo?'\n  ];\n}\n\n// CRIMES ESPECÍFICOS\nelse if (message.includes('droga') || message.includes('tráfico')) {\n  subtype = 'drogas';\n  urgency = 'alta';\n  drJMSpecialty = true;\n}\nelse if (message.includes('roubo') || message.includes('furto')) {\n  subtype = 'patrimonio';\n  urgency = 'normal';\n  drJMSpecialty = true;\n}\nelse if (message.includes('homicídio') || message.includes('lesão')) {\n  subtype = 'violento';\n  urgency = 'urgente';\n  drJMSpecialty = true;\n}\n\n// Gerar resposta específica do Dr. JM\nlet response = '';\n\nswitch(subtype) {\n  case 'flagrante':\n    response = `🚨 PRISÃO EM FLAGRANTE - URGÊNCIA MÁXIMA\\n\\nDr. JM Miranda, criminalista especialista, vai atuar IMEDIATAMENTE.\\n\\n⚡ AÇÃO URGENTE:\\n• Habeas Corpus preventivo\\n• Acompanhamento na delegacia\\n• Audiência de custódia\\n• Liberdade provisória\\n\\n📋 Informações URGENTES:\\n${specificQuestions.map((q, i) => `${i+1}. ${q}`).join('\\n')}\\n\\n🔴 ATENÇÃO: Flagrante tem 24h para audiência!\\n\\n📞 CONTATO IMEDIATO: Dr. JM já está sendo acionado!`;\n    break;\n    \n  case 'inquerito':\n    response = `🔍 INVESTIGAÇÃO POLICIAL\\n\\nDr. JM Miranda, especialista em fase policial, vai te orientar.\\n\\n✅ Acompanhamento especializado:\\n• Assessoria em depoimentos\\n• Medidas cautelares\\n• Controle de investigação\\n• Defesa preventiva\\n\\n📋 Situação atual:\\n${specificQuestions.map((q, i) => `${i+1}. ${q}`).join('\\n')}\\n\\n⚖️ IMPORTANTE: Fase policial é crucial para sua defesa!\\n\\n📞 Dr. JM precisa analisar seu caso HOJE!`;\n    break;\n    \n  case 'processo':\n    response = `⚖️ PROCESSO CRIMINAL EM ANDAMENTO\\n\\nDr. JM Miranda, professor de processo penal, assume sua defesa.\\n\\n✅ Defesa técnica especializada:\\n• Análise processual completa\\n• Estratégia de defesa\\n• Sustentação oral\\n• Acompanhamento em audiências\\n\\n📋 Status processual:\\n${specificQuestions.map((q, i) => `${i+1}. ${q}`).join('\\n')}\\n\\n🎓 Dr. JM: Professor de Direito Penal e Processo Penal\\n\\n📞 Vamos analisar sua defesa estratégica!`;\n    break;\n    \n  case 'recurso':\n    response = `📜 RECURSOS CRIMINAIS - Especialidade Dr. JM\\n\\nCoordenador do Curso de Direito, especialista em recursos.\\n\\n✅ Recursos especializados:\\n• Apelação criminal\\n• Embargos de declaração\\n• Recurso em sentido estrito\\n• Habeas Corpus\\n\\n📋 Dados do recurso:\\n${specificQuestions.map((q, i) => `${i+1}. ${q}`).join('\\n')}\\n\\n⏰ ATENÇÃO: Prazos recursais são improrrogáveis!\\n\\n📞 Dr. JM precisa analisar URGENTE!`;\n    break;\n    \n  case 'drogas':\n    response = `🌿 CRIME DE DROGAS\\n\\nDr. JM Miranda, criminalista com vasta experiência em entorpecentes.\\n\\n✅ Defesa especializada:\\n• Análise da materialidade\\n• Questionamento da autoria\\n• Desclassificação tráfico/uso\\n• Medidas alternativas\\n\\n🎯 Estratégias possíveis:\\n• Trancamento de inquérito\\n• Relaxamento de prisão\\n• Suspensão condicional\\n• Redução de pena\\n\\n📞 Dr. JM vai analisar todas as possibilidades!`;\n    break;\n    \n  default:\n    response = `⚖️ CASO CRIMINAL\\n\\nDr. JM Miranda, criminalista e professor de direito penal.\\n\\n🎓 Especialidades:\\n• Defesa criminal em todas as fases\\n• Professor de Direito Penal\\n• Processo Penal Aplicado\\n• Investigação Criminal\\n• Psicologia Forense\\n\\n✅ Atuação completa:\\n• Flagrantes e custódias\\n• Inquéritos policiais\\n• Processos criminais\\n• Recursos especializados\\n\\n📞 Dr. JM vai analisar seu caso criminal!`;\n}\n\n// Resultado\nconst result = {\n  user_number: userNumber,\n  case_type: 'criminal',\n  subtype: subtype,\n  urgency: urgency,\n  phase: phase,\n  dr_jm_specialty: drJMSpecialty,\n  specific_questions: specificQuestions,\n  response: response,\n  needs_immediate_contact: urgency === 'urgentissimo',\n  priority_contact: urgency !== 'normal',\n  processed_at: new Date().toISOString()\n};\n\nconsole.log('📤 Criminal processado:', result);\n\nreturn result;"
+      },
+      "id": "process-criminal",
+      "name": "Processar Criminal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.urgency }}",
+              "operation": "equal",
+              "value2": "urgentissimo"
+            }
+          ]
+        }
+      },
+      "id": "check-urgency-criminal",
+      "name": "Verificar Urgência Criminal",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "id": "response-urgent-criminal",
+      "name": "Resposta Urgentíssima",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [840, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json", 
+        "responseBody": "={{ $json }}"
+      },
+      "id": "response-normal-criminal",
+      "name": "Resposta Normal Criminal",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [840, 400]
+    }
+  ],
+  "connections": {
+    "Webhook Criminal": {
+      "main": [
+        [
+          {
+            "node": "Processar Criminal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar Criminal": {
+      "main": [
+        [
+          {
+            "node": "Verificar Urgência Criminal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar Urgência Criminal": {
+      "main": [
+        [
+          {
+            "node": "Resposta Urgentíssima",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resposta Normal Criminal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "1"
+}
