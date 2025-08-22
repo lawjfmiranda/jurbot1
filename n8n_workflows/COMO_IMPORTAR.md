@@ -3,7 +3,7 @@
 ## 📋 PASSO A PASSO PARA IMPORTAR
 
 ### 1. Acessar n8n
-- Abra: `http://seu-ip-vps:5678`
+- Abra: `https://n8n-n8n.c9ewnj.easypanel.host/`
 - Faça login na interface
 
 ### 2. Importar Workflow Principal
@@ -22,14 +22,14 @@ Importe na seguinte ordem:
 
 ### 4. Verificar Webhooks Criados
 Após importar, você deve ter estes endpoints:
-- `http://seu-ip:5678/webhook/qualificacao_geral`
-- `http://seu-ip:5678/webhook/qualificacao_familia`  
-- `http://seu-ip:5678/webhook/qualificacao_acidente`
+- `https://n8n-n8n.c9ewnj.easypanel.host/webhook/qualificacao_geral`
+- `https://n8n-n8n.c9ewnj.easypanel.host/webhook/qualificacao_familia`  
+- `https://n8n-n8n.c9ewnj.easypanel.host/webhook/qualificacao_acidente`
 
 ### 5. Configurar Variável de Ambiente
 No seu `.env`, adicione:
 ```bash
-N8N_BASE_URL=http://seu-ip-vps:5678
+N8N_BASE_URL=https://n8n-n8n.c9ewnj.easypanel.host
 N8N_ENABLED=true
 ```
 
@@ -37,7 +37,7 @@ N8N_ENABLED=true
 
 ### Teste via CURL:
 ```bash
-curl -X POST http://seu-ip:5678/webhook/qualificacao_geral \
+curl -X POST https://n8n-n8n.c9ewnj.easypanel.host/webhook/qualificacao_geral \
   -H "Content-Type: application/json" \
   -d '{
     "user_number": "5511999999999",
@@ -65,9 +65,9 @@ curl -X POST http://seu-ip:5678/webhook/qualificacao_geral \
 - Confirme o path do webhook
 
 ### ❌ Erro de conexão
-- Verifique se n8n está rodando: `docker ps`
-- Confirme a porta 5678 está aberta
-- Teste: `curl http://seu-ip:5678/healthz`
+- Verifique se n8n está acessível no EasyPanel
+- Confirme o domínio está correto
+- Teste: `curl https://n8n-n8n.c9ewnj.easypanel.host/healthz`
 
 ### ❌ Bot não chama n8n
 - Verifique a variável `N8N_BASE_URL` no `.env`
