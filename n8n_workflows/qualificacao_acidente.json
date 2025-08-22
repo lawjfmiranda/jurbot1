@@ -1,0 +1,66 @@
+{
+  "name": "Qualificação - Acidentes e Responsabilidade Civil",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "qualificacao_acidente",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-acidente",
+      "name": "Webhook Acidente",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Processar caso de acidente/responsabilidade civil\nconst inputData = $input.all()[0].json;\n\nconst userNumber = inputData.user_number;\nconst message = inputData.message.toLowerCase();\nconst clientInfo = inputData.client_info || {};\n\nconsole.log('🚗 Processando caso de acidente para:', userNumber);\n\n// Identificar tipo de acidente\nlet accidentType = 'geral';\nlet severity = 'leve';\nlet estimatedValue = 'baixo';\nlet specificQuestions = [];\n\n// Acidente de trânsito\nif (message.includes('carro') || message.includes('trânsito') || message.includes('bateu') || message.includes('colisão')) {\n  accidentType = 'transito';\n  specificQuestions = [\n    'Houve vítimas/feridos?',\n    'Foi feito boletim de ocorrência?',\n    'Tem seguro do veículo?',\n    'Quem foi o culpado?'\n  ];\n  \n  // Verificar gravidade\n  if (message.includes('morte') || message.includes('grave') || message.includes('hospital')) {\n    severity = 'grave';\n    estimatedValue = 'alto';\n  }\n}\n\n// Acidente de trabalho\nelse if (message.includes('trabalho') || message.includes('empresa') || message.includes('máquina')) {\n  accidentType = 'trabalho';\n  specificQuestions = [\n    'Houve afastamento?',\n    'Foi comunicado à empresa?',\n    'Há testemunhas?',\n    'Qual o tipo de lesão?'\n  ];\n  \n  if (message.includes('grave') || message.includes('incapacit')) {\n    severity = 'grave';\n    estimatedValue = 'alto';\n  }\n}\n\n// Erro médico\nelse if (message.includes('médico') || message.includes('hospital') || message.includes('cirurgia')) {\n  accidentType = 'medico';\n  severity = 'grave'; // Sempre considerado grave\n  estimatedValue = 'alto';\n  specificQuestions = [\n    'Qual foi o procedimento?',\n    'Tem documentos médicos?',\n    'Houve sequelas?',\n    'Foi em hospital público ou privado?'\n  ];\n}\n\n// Queda/acidente em local público\nelse if (message.includes('queda') || message.includes('caiu') || message.includes('buraco')) {\n  accidentType = 'queda';\n  specificQuestions = [\n    'Onde aconteceu a queda?',\n    'Há testemunhas?',\n    'Foi fotografado o local?',\n    'Houve atendimento médico?'\n  ];\n}\n\n// Produto defeituoso\nelse if (message.includes('produto') || message.includes('defeito') || message.includes('explodiu')) {\n  accidentType = 'produto';\n  specificQuestions = [\n    'Qual produto causou o dano?',\n    'Tem nota fiscal?',\n    'Guardou o produto defeituoso?',\n    'Qual foi o dano causado?'\n  ];\n}\n\n// Calcular prioridade baseada na gravidade\nlet priority = 'normal';\nif (severity === 'grave') {\n  priority = 'alta';\n}\n\n// Gerar resposta específica\nlet response = '';\n\nswitch(accidentType) {\n  case 'transito':\n    const transitSeverity = severity === 'grave' ? '🚨 CASO GRAVE IDENTIFICADO' : 'Acidente de trânsito';\n    response = `🚗 ${transitSeverity}\\n\\nVamos cuidar da sua indenização por acidente de trânsito.\\n\\n✅ Podemos buscar:\\n• Indenização por danos materiais\\n• Danos morais\\n• Lucros cessantes\\n• Despesas médicas\\n• Pensão (em casos graves)\\n\\n📋 Informações importantes:\\n${specificQuestions.map((q, i) => `${i+1}. ${q}`).join('\\n')}\\n\\n💰 Estimativa: Caso de ${estimatedValue} valor\\n\\n📞 ${severity === 'grave' ? 'URGENTE: Vou priorizar seu caso!' : 'Vamos agendar uma consulta?'}`;\n    break;\n    \n  case 'trabalho':\n    response = `⚒️ Acidente de trabalho identificado.\\n\\nSeus direitos trabalhistas serão protegidos.\\n\\n✅ Podemos buscar:\\n• Indenização por acidente\\n• Auxílio-doença acidentário\\n• Aposentadoria por invalidez\\n• Estabilidade no emprego\\n• Danos morais\\n\\n📋 Dados necessários:\\n${specificQuestions.map((q, i) => `${i+1}. ${q}`).join('\\n')}\\n\\n⚖️ ${severity === 'grave' ? 'Caso grave: Vou agilizar sua consulta!' : 'Vamos analisar seu caso?'}`;\n    break;\n    \n  case 'medico':\n    response = `🏥 ERRO MÉDICO - Caso especializado\\n\\nErros médicos exigem análise técnica detalhada.\\n\\n✅ Nossa atuação:\\n• Análise por médico especialista\\n• Indenização por danos\\n• Responsabilização profissional\\n• Suporte psicológico\\n\\n📋 Documentos importantes:\\n${specificQuestions.map((q, i) => `${i+1}. ${q}`).join('\\n')}\\n\\n🩺 IMPORTANTE: Casos médicos têm alta complexidade\\n\\n📞 Vou agendar com nossa especialista em erro médico!`;\n    break;\n    \n  case 'queda':\n    response = `🚧 Acidente por queda em local público/privado.\\n\\nVamos responsabilizar o local inadequado.\\n\\n✅ Podemos buscar:\\n• Indenização do responsável\\n• Danos morais e materiais\\n• Despesas médicas\\n• Lucros cessantes\\n\\n📋 Evidências importantes:\\n${specificQuestions.map((q, i) => `${i+1}. ${q}`).join('\\n')}\\n\\n📸 DICA: Fotografe sempre o local do acidente!\\n\\n📞 Vamos avaliar a responsabilidade?`;\n    break;\n    \n  case 'produto':\n    response = `📦 Produto defeituoso - Direito do Consumidor\\n\\nFabricantes devem responder por produtos defeituosos.\\n\\n✅ Seus direitos:\\n• Indenização integral\\n• Danos morais\\n• Troca do produto\\n• Despesas médicas\\n\\n📋 Documentos essenciais:\\n${specificQuestions.map((q, i) => `${i+1}. ${q}`).join('\\n')}\\n\\n⚖️ CDC te protege contra produtos defeituosos!\\n\\n📞 Vamos processar o fabricante?`;\n    break;\n    \n  default:\n    response = `⚖️ Caso de responsabilidade civil identificado.\\n\\nVamos analisar quem deve te indenizar.\\n\\n✅ Atuamos em:\\n• Acidentes de trânsito\\n• Acidentes de trabalho\\n• Erro médico\\n• Queda em locais públicos\\n• Produtos defeituosos\\n\\n💰 Todo dano merece reparação!\\n\\n📞 Vamos avaliar seu caso?`;\n}\n\n// Resultado\nconst result = {\n  user_number: userNumber,\n  case_type: 'acidente',\n  accident_type: accidentType,\n  severity: severity,\n  priority: priority,\n  estimated_value: estimatedValue,\n  specific_questions: specificQuestions,\n  response: response,\n  requires_expert_analysis: accidentType === 'medico' || severity === 'grave',\n  processed_at: new Date().toISOString()\n};\n\nconsole.log('📤 Acidente processado:', result);\n\nreturn result;"
+      },
+      "id": "process-acidente",
+      "name": "Processar Acidente",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "id": "response-acidente",
+      "name": "Resposta Acidente",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [640, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Acidente": {
+      "main": [
+        [
+          {
+            "node": "Processar Acidente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar Acidente": {
+      "main": [
+        [
+          {
+            "node": "Resposta Acidente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "1"
+}

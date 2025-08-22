@@ -1,0 +1,113 @@
+{
+  "name": "Qualificação - Direito de Família",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "qualificacao_familia",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-familia",
+      "name": "Webhook Família",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Processar caso de direito de família\nconst inputData = $input.all()[0].json;\n\nconst userNumber = inputData.user_number;\nconst message = inputData.message.toLowerCase();\nconst clientInfo = inputData.client_info || {};\n\nconsole.log('👨‍👩‍👧‍👦 Processando caso de família para:', userNumber);\n\n// Identificar subtipo específico\nlet subtype = 'geral';\nlet urgency = 'normal';\nlet specificQuestions = [];\n\n// Divórcio\nif (message.includes('divórcio') || message.includes('divorcio') || message.includes('separar')) {\n  subtype = 'divorcio';\n  specificQuestions = [\n    'Vocês têm filhos menores?',\n    'Há bens a partilhar?',\n    'O divórcio é consensual?'\n  ];\n}\n\n// Guarda\nelse if (message.includes('guarda') || message.includes('visita')) {\n  subtype = 'guarda';\n  specificQuestions = [\n    'Quantos filhos estão envolvidos?',\n    'Qual a idade das crianças?',\n    'Há acordo sobre visitas?'\n  ];\n}\n\n// Pensão\nelse if (message.includes('pensão') || message.includes('pensao') || message.includes('alimento')) {\n  subtype = 'pensao';\n  specificQuestions = [\n    'Qual a renda do pagador?',\n    'Quantos dependentes?',\n    'Há atraso nos pagamentos?'\n  ];\n  \n  // Pensão em atraso é urgente\n  if (message.includes('não paga') || message.includes('atraso')) {\n    urgency = 'alta';\n  }\n}\n\n// Violência doméstica\nelse if (message.includes('violência') || message.includes('agressão') || message.includes('ameaça')) {\n  subtype = 'violencia';\n  urgency = 'urgente';\n  specificQuestions = [\n    'Você está em local seguro?',\n    'Já registrou boletim de ocorrência?',\n    'Precisa de medida protetiva?'\n  ];\n}\n\n// Gerar resposta específica\nlet response = '';\n\nswitch(subtype) {\n  case 'divorcio':\n    response = `💔 Compreendo que você quer se divorciar.\\n\\nVou te conectar com nossa especialista em divórcio, Dra. Ana.\\n\\n✅ Podemos ajudar com:\\n• Divórcio consensual ou litigioso\\n• Partilha de bens\\n• Guarda dos filhos\\n• Pensão alimentícia\\n\\n📋 Para agilizar sua consulta:\\n${specificQuestions.map((q, i) => `${i+1}. ${q}`).join('\\n')}\\n\\n📞 Vamos agendar uma consulta especializada?`;\n    break;\n    \n  case 'guarda':\n    response = `👶 Questões de guarda precisam de cuidado especial.\\n\\nNossa equipe prioriza sempre o bem-estar das crianças.\\n\\n✅ Atuamos em:\\n• Guarda unilateral e compartilhada\\n• Regulamentação de visitas\\n• Mudança de guarda\\n• Alienação parental\\n\\n📋 Informações importantes:\\n${specificQuestions.map((q, i) => `${i+1}. ${q}`).join('\\n')}\\n\\n👨‍⚖️ Quer uma consulta com nossa especialista?`;\n    break;\n    \n  case 'pensao':\n    const urgencyText = urgency === 'alta' ? '🚨 URGENTE: ' : '';\n    response = `💰 ${urgencyText}Questões de pensão alimentícia.\\n\\nVamos resolver sua situação rapidamente.\\n\\n✅ Podemos ajudar com:\\n• Ação de alimentos\\n• Revisão de pensão\\n• Execução de alimentos\\n• Prisão por não pagamento\\n\\n📋 Dados importantes:\\n${specificQuestions.map((q, i) => `${i+1}. ${q}`).join('\\n')}\\n\\n⚖️ ${urgency === 'alta' ? 'Vou priorizar seu caso!' : 'Vamos agendar uma consulta?'}`;\n    break;\n    \n  case 'violencia':\n    response = `🚨 SITUAÇÃO DE URGÊNCIA IDENTIFICADA\\n\\nSua segurança é nossa prioridade absoluta.\\n\\n✅ Ação imediata:\\n• Medida protetiva de urgência\\n• Acompanhamento policial\\n• Orientação jurídica completa\\n• Suporte psicológico\\n\\n📋 Informações urgentes:\\n${specificQuestions.map((q, i) => `${i+1}. ${q}`).join('\\n')}\\n\\n📞 CONTATO IMEDIATO: Vou conectar você AGORA com nossa especialista em violência doméstica!\\n\\n🆘 Em emergência, ligue 190`;\n    break;\n    \n  default:\n    response = `👨‍👩‍👧‍👦 Questão de direito de família identificada.\\n\\nVamos analisar seu caso com todo cuidado.\\n\\n✅ Áreas de atuação:\\n• Divórcio e separação\\n• Guarda e visitação\\n• Pensão alimentícia\\n• União estável\\n• Adoção\\n\\n📞 Gostaria de agendar uma consulta especializada?`;\n}\n\n// Resultado\nconst result = {\n  user_number: userNumber,\n  case_type: 'familia',\n  subtype: subtype,\n  urgency: urgency,\n  specific_questions: specificQuestions,\n  response: response,\n  needs_immediate_contact: urgency === 'urgente',\n  processed_at: new Date().toISOString()\n};\n\nconsole.log('📤 Família processada:', result);\n\nreturn result;"
+      },
+      "id": "process-familia",
+      "name": "Processar Família",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.urgency }}",
+              "operation": "equal",
+              "value2": "urgente"
+            }
+          ]
+        }
+      },
+      "id": "check-urgency",
+      "name": "Verificar Urgência",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "id": "response-urgent",
+      "name": "Resposta Urgente",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [840, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json", 
+        "responseBody": "={{ $json }}"
+      },
+      "id": "response-normal",
+      "name": "Resposta Normal",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [840, 400]
+    }
+  ],
+  "connections": {
+    "Webhook Família": {
+      "main": [
+        [
+          {
+            "node": "Processar Família",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar Família": {
+      "main": [
+        [
+          {
+            "node": "Verificar Urgência",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar Urgência": {
+      "main": [
+        [
+          {
+            "node": "Resposta Urgente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resposta Normal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "1"
+}

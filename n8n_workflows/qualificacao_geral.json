@@ -1,0 +1,67 @@
+{
+  "name": "Qualificação Jurídica Geral",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "qualificacao_geral",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-start",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "qualificacao-geral-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Processar dados do chatbot\nconst inputData = $input.all()[0].json;\n\nconst userNumber = inputData.user_number;\nconst message = inputData.message;\nconst caseType = inputData.case_type;\nconst timestamp = inputData.timestamp;\nconst clientInfo = inputData.client_info || {};\n\n// Log dos dados recebidos\nconsole.log('📥 Dados recebidos do chatbot:', {\n  userNumber,\n  message: message.substring(0, 50) + '...',\n  caseType,\n  clientInfo\n});\n\n// Classificar urgência\nconst urgentKeywords = ['urgente', 'emergência', 'prisão', 'delegacia', 'violência'];\nconst isUrgent = urgentKeywords.some(keyword => \n  message.toLowerCase().includes(keyword)\n);\n\n// Classificar complexidade\nconst complexKeywords = ['empresa', 'contrato', 'milhões', 'internacional'];\nconst isComplex = complexKeywords.some(keyword => \n  message.toLowerCase().includes(keyword)\n);\n\n// Determinar próxima ação\nlet nextAction = 'consulta_padrao';\nlet priority = 'normal';\nlet estimatedValue = 'consulta';\n\nif (isUrgent) {\n  nextAction = 'contato_imediato';\n  priority = 'urgente';\n  estimatedValue = 'emergencia';\n} else if (isComplex) {\n  nextAction = 'analise_detalhada';\n  priority = 'alta';\n  estimatedValue = 'complexo';\n}\n\n// Gerar resposta baseada no tipo de caso\nlet response = '';\n\nswitch(caseType) {\n  case 'familia':\n    response = `👨‍👩‍👧‍👦 Entendi que é uma questão de direito de família.\\n\\nPara te ajudar da melhor forma, vou agendar uma consulta especializada.\\n\\n✅ Nossos especialistas em família podem orientar sobre:\\n• Divórcio e separação\\n• Guarda de filhos\\n• Pensão alimentícia\\n• Partilha de bens\\n\\n📞 Gostaria de agendar uma consulta?`;\n    break;\n    \n  case 'acidente':\n    response = `🚗 Compreendo que você passou por um acidente.\\n\\nVou conectar você com nossa equipe especializada em responsabilidade civil.\\n\\n✅ Podemos ajudar com:\\n• Indenização por danos\\n• Negociação com seguros\\n• Perícia técnica\\n• Processos de reparação\\n\\n⚖️ Vamos agendar uma avaliação do seu caso?`;\n    break;\n    \n  case 'trabalhista':\n    response = `👔 Questões trabalhistas requerem atenção especializada.\\n\\nNossa equipe trabalhista pode te orientar sobre seus direitos.\\n\\n✅ Áreas que atuamos:\\n• Rescisão e verbas\\n• Assédio no trabalho\\n• Horas extras\\n• FGTS e benefícios\\n\\n📋 Quer agendar uma consulta trabalhista?`;\n    break;\n    \n  case 'criminal':\n    response = `⚖️ Questões criminais precisam de atenção imediata.\\n\\nNossos criminalistas estão preparados para te defender.\\n\\n🚨 Urgência identificada: ${isUrgent ? 'ALTA' : 'NORMAL'}\\n\\n✅ Podemos ajudar com:\\n• Defesa criminal\\n• Medidas protetivas\\n• Processos policiais\\n• Recursos e apelações\\n\\n📞 ${isUrgent ? 'Vou priorizar seu atendimento!' : 'Vamos agendar uma consulta?'}`;\n    break;\n    \n  case 'civel':\n    response = `📋 Questões cíveis exigem análise detalhada.\\n\\nVamos avaliar a viabilidade do seu caso.\\n\\n✅ Atuamos em:\\n• Contratos e cobranças\\n• Indenizações\\n• Disputas empresariais\\n• Ações de reparação\\n\\n💼 Complexidade: ${isComplex ? 'ALTA' : 'PADRÃO'}\\n\\n📅 Gostaria de uma consulta de avaliação?`;\n    break;\n    \n  default:\n    response = `⚖️ Compreendo sua situação jurídica.\\n\\nVou conectar você com nossa equipe mais adequada para seu caso.\\n\\n✅ O JM ADVOGADOS atua em todas as áreas do direito:\\n• Família e sucessões\\n• Criminal e medidas protetivas\\n• Cível e contratos\\n• Trabalhista\\n• Responsabilidade civil\\n\\n📞 Vamos agendar uma consulta para analisar seu caso?`;\n}\n\n// Resultado final\nconst result = {\n  user_number: userNumber,\n  case_type: caseType,\n  priority: priority,\n  urgency: isUrgent,\n  complexity: isComplex,\n  next_action: nextAction,\n  estimated_value: estimatedValue,\n  response: response,\n  processed_at: new Date().toISOString(),\n  needs_followup: isUrgent || isComplex\n};\n\nconsole.log('📤 Resultado processado:', result);\n\nreturn result;"
+      },
+      "id": "process-qualification",
+      "name": "Processar Qualificação",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "id": "webhook-response", 
+      "name": "Resposta Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [640, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Processar Qualificação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar Qualificação": {
+      "main": [
+        [
+          {
+            "node": "Resposta Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "1"
+}

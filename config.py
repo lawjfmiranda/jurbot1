@@ -130,6 +130,18 @@ class NotificationConfig:
 
 
 @dataclass
+class N8NConfig:
+    """Configurações do n8n."""
+    base_url: str = field(default_factory=lambda: os.getenv("N8N_BASE_URL", "http://localhost:5678"))
+    enabled: bool = field(default_factory=lambda: os.getenv("N8N_ENABLED", "true").lower() == "true")
+    
+    def validate(self) -> List[str]:
+        errors = []
+        if self.enabled and not self.base_url:
+            errors.append("N8N_BASE_URL é obrigatório quando n8n está habilitado")
+        return errors
+
+@dataclass
 class SecurityConfig:
     """Configurações de segurança."""
     admin_token: Optional[str] = field(default_factory=lambda: os.getenv("ADMIN_TOKEN"))
@@ -157,6 +169,7 @@ class AppConfig:
     google: GoogleConfig = field(default_factory=GoogleConfig)
     gemini: GeminiConfig = field(default_factory=GeminiConfig)
     rate_limit: RateLimitConfig = field(default_factory=RateLimitConfig)
+    n8n: N8NConfig = field(default_factory=N8NConfig)
     business: BusinessConfig = field(default_factory=BusinessConfig)
     notification: NotificationConfig = field(default_factory=NotificationConfig)
     security: SecurityConfig = field(default_factory=SecurityConfig)
@@ -189,6 +202,9 @@ class AppConfig:
             self.business.__post_init__()
         except ValueError as e:
             errors.append(f"Business Config: {e}")
+        
+        # Validar n8n
+        errors.extend([f"n8n: {e}" for e in self.n8n.validate()])
         
         try:
             self.security.__post_init__()

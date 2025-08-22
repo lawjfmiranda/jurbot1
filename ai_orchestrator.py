@@ -7,6 +7,8 @@ import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 import logging
+import requests
+import asyncio
 
 try:
     from zoneinfo import ZoneInfo
@@ -22,11 +24,84 @@ from utils.lead_qualification import lead_qualifier
 logger = logging.getLogger(__name__)
 
 
+class N8NIntegration:
+    """Integração com n8n para automações avançadas."""
+    
+    def __init__(self, n8n_base_url: str = None):
+        self.base_url = n8n_base_url or os.getenv("N8N_BASE_URL", "http://localhost:5678")
+        self.logger = logging.getLogger(__name__)
+    
+    def trigger_workflow(self, workflow_name: str, data: dict) -> dict:
+        """Dispara um workflow específico no n8n."""
+        try:
+            webhook_url = f"{self.base_url}/webhook/{workflow_name}"
+            
+            self.logger.info(f"🔥 Triggering n8n workflow: {workflow_name}")
+            self.logger.debug(f"📤 Data sent to n8n: {data}")
+            
+            response = requests.post(
+                webhook_url,
+                json=data,
+                timeout=30,
+                headers={"Content-Type": "application/json"}
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                self.logger.info(f"✅ n8n workflow success: {workflow_name}")
+                return {"success": True, "data": result}
+            else:
+                self.logger.error(f"❌ n8n workflow failed: {response.status_code} - {response.text}")
+                return {"success": False, "error": f"HTTP {response.status_code}"}
+                
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"🔌 n8n connection error: {e}")
+            return {"success": False, "error": str(e)}
+        except Exception as e:
+            self.logger.error(f"💥 n8n unexpected error: {e}")
+            return {"success": False, "error": str(e)}
+    
+    def classify_case_for_workflow(self, message: str) -> str:
+        """Classifica o tipo de caso para escolher o workflow correto."""
+        message_lower = message.lower()
+        
+        # Casos de Direito de Família
+        if any(word in message_lower for word in ["divórcio", "separação", "guarda", "pensão", "casamento"]):
+            return "familia"
+        
+        # Casos de Acidente/Seguro
+        elif any(word in message_lower for word in ["acidente", "bateu", "colisão", "seguro", "danos"]):
+            return "acidente"
+        
+        # Casos Trabalhistas
+        elif any(word in message_lower for word in ["trabalho", "demissão", "rescisão", "fgts", "salário"]):
+            return "trabalhista"
+        
+        # Casos Criminais
+        elif any(word in message_lower for word in ["agressão", "violência", "ameaça", "roubo", "furto"]):
+            return "criminal"
+        
+        # Casos Cíveis Gerais
+        elif any(word in message_lower for word in ["contrato", "dívida", "cobrança", "indenização"]):
+            return "civel"
+        
+        # Default: qualificação geral
+        return "geral"
+
+
 class AIConversationManager:
     """Gerencia conversação completa através de IA natural."""
     
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
+        # Importar config aqui para evitar import circular
+        try:
+            from config import AppConfig
+            config = AppConfig()
+            self.n8n = N8NIntegration(config.n8n.base_url) if config.n8n.enabled else None
+        except ImportError:
+            self.logger.warning("Config não encontrado, usando configuração padrão para n8n")
+            self.n8n = N8NIntegration()
     
     def process(self, user_number: str, message: str, state: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -681,7 +756,40 @@ Responda APENAS com JSON:
         data = state.get("data", {})
         
         if current == "FREE":
-            # Identificar área para qualificação
+            # 🔥 INTEGRAÇÃO N8N: Disparar workflow de qualificação (se habilitado)
+            if self.n8n:
+                case_type = self.n8n.classify_case_for_workflow(message)
+                
+                # Enviar dados para n8n processar
+                n8n_data = {
+                    "user_number": user_number,
+                    "message": message,
+                    "case_type": case_type,
+                    "timestamp": datetime.now().isoformat(),
+                    "client_info": {
+                        "name": client.get("name") if client else None,
+                        "email": client.get("email") if client else None
+                    }
+                }
+                
+                # Disparar workflow n8n
+                n8n_result = self.n8n.trigger_workflow(f"qualificacao_{case_type}", n8n_data)
+                
+                if n8n_result.get("success"):
+                    self.logger.info(f"🎯 n8n workflow triggered successfully for case: {case_type}")
+                    # Se n8n retornou resposta específica, usar ela
+                    if n8n_result.get("data", {}).get("response"):
+                        response = n8n_result["data"]["response"]
+                        return {
+                            "replies": [response],
+                            "new_state": {**state, "state": "FREE"}
+                        }
+                else:
+                    self.logger.warning(f"⚠️ n8n workflow failed for case: {case_type}")
+            else:
+                self.logger.debug("n8n disabled, using traditional qualification")
+            
+            # Identificar área para qualificação (fallback se n8n falhar)
             try:
                 intent_result = ai_service.extract_intent(message)
                 area = intent_result.get("area")
